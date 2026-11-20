@@ -1284,6 +1284,8 @@ body.night.wake #wrap { opacity: 1; }
       }
     };
     x.onerror = function () { cb(new Error('network')); };
+    x.timeout = 10000;   // the hourly sign-in refresh shouldn't be able to stall updates either
+    x.ontimeout = function () { cb(new Error('timeout')); };
     x.send(qs(params));
   }
 
@@ -1296,16 +1298,24 @@ body.night.wake #wrap { opacity: 1; }
   function spApi(method, path, cb, retried) {
     spEnsure(function (err) {
       if (err) return cb(err);
-      var x = new XMLHttpRequest();
-      x.open(method, 'https://api.spotify.com/v1' + path, true);
+      var x = new XMLHttpRequest(), done = false;
+      // A unique value on every read so Safari never answers from a saved copy of an older reply.
+      var url = 'https://api.spotify.com/v1' + path + (method === 'GET' ? (path.indexOf('?') < 0 ? '?' : '&') + '_=' + Date.now() : '');
+      x.open(method, url, true);
       x.setRequestHeader('Authorization', 'Bearer ' + lsGet('spAccess'));
+      // Give up on a stuck request after 8 s. Otherwise one hung request on flaky Wi-Fi blocks every
+      // update after it until Safari times out on its own, which can take minutes.
+      x.timeout = 8000;
+      x.ontimeout = function () { if (!done) { done = true; cb(new Error('timeout')); } };
       x.onload = function () {
+        if (done) return;
+        done = true;
         if (x.status === 401 && !retried) { lsDel('spAccess'); return spApi(method, path, cb, true); }
         var body = null;
         try { body = x.responseText ? JSON.parse(x.responseText) : null; } catch (e) {}
         cb(x.status >= 200 && x.status < 300 ? null : new Error(x.status === 403 ? 'premium' : 'HTTP ' + x.status), body, x.status);
       };
-      x.onerror = function () { cb(new Error('network')); };
+      x.onerror = function () { if (!done) { done = true; cb(new Error('network')); } };
       x.send();
     });
   }
@@ -1339,7 +1349,17 @@ body.night.wake #wrap { opacity: 1; }
         spRender();
       });
     }
-    spTimer = setTimeout(spPoll, SP_POLL[view]);
+    spTimer = setTimeout(spPoll, spNextPoll());
+  }
+  // Normally the screen's usual interval, but if the song should end sooner, check right after it ends
+  // so the next track shows up straight away.
+  function spNextPoll() {
+    var every = SP_POLL[view], st = SP.state;
+    if (st && st.item && st.is_playing) {
+      var left = st.item.duration_ms - spPos();
+      if (left + 800 < every) return Math.max(800, left + 800);
+    }
+    return every;
   }
   function spRender() { renderMusic(); renderMini(); renderBigClock(); }
 
