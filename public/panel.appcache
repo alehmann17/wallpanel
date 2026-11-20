@@ -1,0 +1,13 @@
+CACHE MANIFEST
+# v10  <- change this line whenever you edit index.html, words.js or fonts, so the iPad picks up the new version
+
+CACHE:
+words.js
+fonts/manrope-latin-300-normal.woff
+fonts/manrope-latin-500-normal.woff
+fonts/manrope-latin-700-normal.woff
+fonts/fraunces-latin-600-normal.woff
+fonts/fraunces-latin-400-italic.woff
+
+NETWORK:
+*

@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<!-- manifest = HTML5 Application Cache: after the first load, iOS 9 keeps this page (and its fonts)
+     on the iPad, so the computer that served it can be switched off. Bump the version in
+     panel.appcache to push updates. -->
+<html lang="en" manifest="panel.appcache">
+<head>
+<meta charset="utf-8">
+<title>Wall Panel</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Panel">
+<style>
+/* Written for iOS 9 Safari: no CSS grid, no CSS variables, prefixed flexbox and animations, WOFF fonts. */
+@font-face { font-family: "Manrope"; font-weight: 300; src: url("fonts/manrope-latin-300-normal.woff") format("woff"); }
+@font-face { font-family: "Manrope"; font-weight: 500; src: url("fonts/manrope-latin-500-normal.woff") format("woff"); }
+@font-face { font-family: "Manrope"; font-weight: 700; src: url("fonts/manrope-latin-700-normal.woff") format("woff"); }
+@font-face { font-family: "Fraunces"; font-weight: 600; src: url("fonts/fraunces-latin-600-normal.woff") format("woff"); }
+@font-face { font-family: "Fraunces"; font-weight: 400; font-style: italic; src: url("fonts/fraunces-latin-400-italic.woff") format("woff"); }
+
+* { box-sizing: border-box; -webkit-box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: #070a12; color: #f2f4f7;
+  font-family: "Manrope", -apple-system, "Helvetica Neue", Helvetica, sans-serif; font-weight: 500;
+  -webkit-font-smoothing: antialiased; -webkit-user-select: none; -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: rgba(0,0,0,0); }
+.num { -webkit-font-feature-settings: "tnum"; font-feature-settings: "tnum"; }
+
+/* Sky: two stacked layers that cross-fade when the time of day (or the weather) changes. */
+.sky { position: fixed; top: 0; left: 0; right: 0; bottom: 0; opacity: 0;
+  -webkit-transition: opacity 20s ease; transition: opacity 20s ease; }
+
+#wrap { position: relative; height: 100%; padding: 22px 30px 12px; display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column;
+  -webkit-transition: -webkit-transform 2s, opacity 3s; transition: transform 2s, opacity 3s; }
+.row { display: -webkit-flex; display: flex; -webkit-flex: 1; flex: 1; min-height: 0; }
+.left { -webkit-flex: 1.2; flex: 1.2; min-width: 0; display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column; }
+.right { -webkit-flex: 0.8; flex: 0.8; min-width: 0; margin-left: 20px; display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column; }
+.card { background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.07); border-radius: 22px; padding: 20px 22px; }
+.label { font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(235,240,247,0.42); }
+.dim { color: rgba(235,240,247,0.62); }
+
+/* Header: clock + current conditions */
+.head { display: -webkit-flex; display: flex; -webkit-align-items: flex-end; align-items: flex-end; margin-bottom: 18px; }
+.head .grow { -webkit-flex: 1; flex: 1; }
+#clock { font-size: 104px; font-weight: 300; line-height: 0.9; letter-spacing: -4px; }
+#ampm { font-size: 26px; font-weight: 500; letter-spacing: 1px; margin-left: 8px; color: rgba(235,240,247,0.5); }
+#date { font-size: 21px; margin-top: 10px; color: rgba(235,240,247,0.7); }
+.now { text-align: right; }
+.now-top { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: flex-end; justify-content: flex-end; }
+#now-icon { width: 58px; height: 58px; margin-right: 10px; }
+#now-temp { font-size: 66px; font-weight: 300; line-height: 1; letter-spacing: -2px; }
+#now-desc { font-size: 16px; margin-top: 6px; color: rgba(235,240,247,0.62); }
+
+/* Weather card */
+#wcard { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.stats { display: -webkit-flex; display: flex; margin-top: 12px; }
+.stat { -webkit-flex: 1; flex: 1; }
+.stat b { display: block; font-size: 22px; font-weight: 500; margin-top: 3px; white-space: nowrap; }
+.stat b small { font-size: 13px; color: rgba(235,240,247,0.55); margin-left: 2px; }
+#sunrise { color: #ffd38a; }
+#sunset { color: #f29a6b; }
+.rule { height: 1px; background: rgba(255,255,255,0.07); margin: 14px 0 10px; }
+.hwrap { -webkit-flex: 1; flex: 1; min-height: 120px; margin-top: 6px; display: -webkit-flex; display: flex; }
+#hourly { -webkit-flex: 1; flex: 1; min-width: 0; }
+/* Small vertical toggle beside the chart: Temp / Rain / Feels */
+.modes { width: 62px; margin-left: 10px; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+  -webkit-justify-content: center; justify-content: center; }
+.modes button { -webkit-appearance: none; font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;
+  height: 34px; margin: 3px 0; border-radius: 17px; border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04); color: rgba(235,240,247,0.55);
+  -webkit-transition: background 0.25s, color 0.25s; transition: background 0.25s, color 0.25s; }
+.modes button.on { color: #10151c; border-color: transparent; }
+.modes button.on.temp { background: #ffb46e; }
+.modes button.on.rain { background: #7fbcff; }
+.modes button.on.feels { background: #c3b2ff; }
+#hourly svg { -webkit-animation: fadein 0.4s ease; animation: fadein 0.4s ease; }
+@-webkit-keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+/* Trains card */
+#tcard { -webkit-flex: 1; flex: 1; min-height: 0; padding-top: 16px; padding-bottom: 14px; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.thead { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.thead .grow { -webkit-flex: 1; flex: 1; }
+.bullet { width: 46px; height: 46px; border-radius: 23px; background: #00933c; color: #fff; text-align: center;
+  font-size: 29px; line-height: 46px; font-weight: 700; margin-right: 12px; font-family: "Helvetica Neue", Helvetica, sans-serif; }
+.bullet.sm { width: 28px; height: 28px; border-radius: 14px; font-size: 18px; line-height: 28px; margin-right: 12px; }
+.bullet.x { border-radius: 4px; -webkit-transform: rotate(45deg) scale(0.86); transform: rotate(45deg) scale(0.86); }
+.bullet.x span { display: block; -webkit-transform: rotate(-45deg); transform: rotate(-45deg); }
+.ttitle { font-size: 22px; font-weight: 700; }
+.tsub { font-size: 14px; color: rgba(235,240,247,0.55); margin-top: 1px; }
+
+.rbtn { -webkit-appearance: none; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.08);
+  color: #f2f4f7; font-family: inherit; font-size: 15px; font-weight: 700; height: 50px; padding: 0 18px 0 14px;
+  border-radius: 25px; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-transition: background 0.3s, color 0.3s; transition: background 0.3s, color 0.3s; }
+.rbtn svg { width: 20px; height: 20px; margin-right: 7px; }
+.rbtn:active { background: rgba(255,255,255,0.18); }
+.rbtn.busy svg { -webkit-animation: spin 0.9s linear infinite; animation: spin 0.9s linear infinite; }
+.rbtn.busy { color: rgba(235,240,247,0.6); }
+.rbtn.done { background: rgba(0,147,60,0.35); border-color: rgba(80,220,140,0.4); }
+.rbtn.fail { background: rgba(200,60,60,0.3); border-color: rgba(255,120,120,0.4); }
+
+.hero { margin-top: 12px; padding: 10px 16px 12px; border-radius: 18px; background: rgba(0,147,60,0.12);
+  border: 1px solid rgba(60,200,120,0.18); }
+.hero-row { display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline; }
+#hero-min { font-size: 64px; font-weight: 300; line-height: 0.95; letter-spacing: -4px; }
+#hero-unit { font-size: 24px; font-weight: 500; margin-left: 8px; color: rgba(235,240,247,0.65); -webkit-flex: 1; flex: 1; }
+#hero-at { font-size: 17px; color: rgba(235,240,247,0.65); text-align: right; white-space: nowrap; }
+#hero-at b { display: block; font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; color: #6be39a; margin-bottom: 2px; }
+.bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.09); margin-top: 10px; overflow: hidden; }
+#bar-fill { height: 100%; width: 0; border-radius: 3px; background: #2fd07a;
+  -webkit-transition: width 5s linear; transition: width 5s linear; }
+.hero.soon { background: rgba(255,196,64,0.13); border-color: rgba(255,196,64,0.3); }
+.hero.soon #hero-min { color: #ffd166; }
+.hero.soon #bar-fill { background: #ffd166; }
+.hero.soon #hero-at b { color: #ffd166; }
+.hero.arriving { -webkit-animation: glow 1.6s ease-in-out infinite; animation: glow 1.6s ease-in-out infinite; }
+
+#tlist { -webkit-flex: 1; flex: 1; margin-top: 4px; min-height: 0; overflow: hidden; }
+.train { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 8px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.06); }
+.train:last-child { border-bottom: 0; }
+.train .m { -webkit-flex: 1; flex: 1; font-size: 26px; font-weight: 300; letter-spacing: -1px; }
+
+/* Spotify mini player on Home */
+#mini { margin-top: 14px; padding: 14px; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  position: relative; overflow: hidden; min-height: 98px; }
+#mini-bg { position: absolute; top: -40px; left: -40px; right: -40px; bottom: -40px; background-size: cover; background-position: center;
+  -webkit-filter: blur(40px) saturate(1.4); filter: blur(40px) saturate(1.4); opacity: 0.4; }
+#mini .art { position: relative; width: 68px; height: 68px; border-radius: 10px; object-fit: cover; -webkit-flex-shrink: 0; flex-shrink: 0;
+  background: rgba(255,255,255,0.08); box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
+#mini .info { position: relative; -webkit-flex: 1; flex: 1; min-width: 0; margin-left: 14px; }
+#mini .t { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mini .a { font-size: 14px; color: rgba(235,240,247,0.65); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#mini .bar { height: 4px; margin-top: 10px; }
+#mini-fill { height: 100%; width: 0; background: #f2f4f7; border-radius: 2px; -webkit-transition: width 1s linear; transition: width 1s linear; }
+#mini .ctl { position: relative; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-left: 10px; }
+#mini .ctl button { -webkit-appearance: none; border: 0; width: 40px; height: 40px; border-radius: 20px; margin-left: 4px;
+  background: transparent; color: #f2f4f7; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+#mini .ctl button svg { width: 20px; height: 20px; }
+#mini .ctl button.big { width: 48px; height: 48px; border-radius: 24px; background: #f2f4f7; color: #10151c; }
+#mini .ctl button.big svg { width: 22px; height: 22px; }
+#mini .ctl button:active { opacity: 0.7; }
+#mini .sp { width: 44px; height: 44px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+#mini .msg { font-size: 15px; color: rgba(235,240,247,0.7); margin-left: 14px; line-height: 1.35; -webkit-flex: 1; flex: 1; }
+#mini .msg b { color: #f2f4f7; }
+#mini .go { color: #1ed760; font-weight: 700; font-size: 14px; margin-left: 10px; white-space: nowrap; }
+.train .m small { font-size: 15px; font-weight: 500; letter-spacing: 0; margin-left: 4px; color: rgba(235,240,247,0.55); }
+.train .at { font-size: 16px; color: rgba(235,240,247,0.55); }
+.fresh { -webkit-animation: rise 0.6s ease both; animation: rise 0.6s ease both; }
+.empty { font-size: 17px; color: rgba(235,240,247,0.6); padding: 18px 4px; line-height: 1.4; }
+
+.tfoot { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; font-size: 13px;
+  color: rgba(235,240,247,0.45); padding-top: 10px; }
+#live { width: 8px; height: 8px; border-radius: 4px; background: #5b6470; margin-right: 8px; }
+#live.on { background: #2fd07a; -webkit-animation: pulse 2.4s ease-in-out infinite; animation: pulse 2.4s ease-in-out infinite; }
+#live.bad { background: #ff7a7a; }
+#t-status.bad { color: #ff9c9c; }
+
+/* Word of the day */
+/* Bottom row on Home: today's calendar + word of the day */
+.brow { display: -webkit-flex; display: flex; margin-top: 18px; height: 132px; }
+#agenda { -webkit-flex: 1.2; flex: 1.2; min-width: 0; padding: 14px 20px; overflow: hidden; }
+#vocab { -webkit-flex: 0.8; flex: 0.8; min-width: 0; margin-left: 20px; padding: 14px 22px; overflow: hidden; }
+.vleft { margin-bottom: 4px; }
+#v-word { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 30px; line-height: 1.15; letter-spacing: -0.5px; }
+#v-pos { font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 400; font-size: 16px; color: rgba(235,240,247,0.55); margin-left: 8px; }
+#v-def { font-size: 16px; line-height: 1.3; }
+#v-ex { font-family: "Fraunces", Georgia, serif; font-style: italic; font-size: 14px; color: rgba(235,240,247,0.6); margin-top: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-row { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-top: 8px; font-size: 16px; }
+.ag-dot { width: 4px; height: 22px; border-radius: 2px; margin-right: 12px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.ag-time { width: 74px; -webkit-flex-shrink: 0; flex-shrink: 0; color: rgba(235,240,247,0.6); font-size: 15px; }
+.ag-title { -webkit-flex: 1; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.ag-now { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #10151c; background: #6be39a; border-radius: 6px; padding: 2px 6px; margin-left: 8px; }
+.ag-msg { font-size: 15px; color: rgba(235,240,247,0.62); margin-top: 10px; line-height: 1.4; }
+.ag-msg b { color: #f2f4f7; }
+
+/* Calendar screen */
+#cal-body { -webkit-flex: 1; flex: 1; min-height: 0; display: -webkit-flex; display: flex; }
+.cal-col { -webkit-flex: 1; flex: 1; min-width: 0; padding: 18px 22px; overflow: hidden; display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column; }
+.cal-col.today { -webkit-flex: 1.5; flex: 1.5; }
+.cal-col + .cal-col { margin-left: 18px; }
+.cal-col h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.cal-col h2 small { font-size: 15px; font-weight: 500; color: rgba(235,240,247,0.55); margin-left: 8px; }
+.cal-allday { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; margin-top: 6px; }
+.cal-chip { font-size: 14px; font-weight: 700; padding: 5px 12px; border-radius: 14px; margin: 4px 8px 0 0; color: #10151c; }
+.cal-ev { display: -webkit-flex; display: flex; padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.cal-ev:last-child { border-bottom: 0; }
+.cal-ev .bar2 { width: 4px; border-radius: 2px; margin-right: 14px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.cal-ev .tm { width: 92px; -webkit-flex-shrink: 0; flex-shrink: 0; font-size: 16px; font-weight: 700; }
+.cal-ev .tm small { display: block; font-size: 13px; font-weight: 500; color: rgba(235,240,247,0.5); margin-top: 2px; }
+.cal-ev .bd { -webkit-flex: 1; flex: 1; min-width: 0; }
+.cal-ev .ti { font-size: 19px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-ev .lo { font-size: 14px; color: rgba(235,240,247,0.55); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-ev.past { opacity: 0.4; }
+.cal-ev.cur .ti:after { content: "NOW"; font-size: 11px; letter-spacing: 1px; color: #10151c; background: #6be39a; border-radius: 6px;
+  padding: 2px 6px; margin-left: 10px; vertical-align: 3px; }
+.cal-list { -webkit-flex: 1; flex: 1; min-height: 0; overflow: hidden; margin-top: 4px; }
+.cal-none { font-size: 17px; color: rgba(235,240,247,0.55); padding: 16px 0; }
+#cal-body .mcard { margin: auto; }
+.cal-foot { font-size: 13px; color: rgba(235,240,247,0.45); margin-top: 10px; }
+
+/* ---------- Views and navigation ---------- */
+.view { -webkit-flex: 1; flex: 1; min-height: 0; display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column; -webkit-animation: fadein 0.35s ease; animation: fadein 0.35s ease; }
+.view.off { display: none; }
+#nav { display: -webkit-flex; display: flex; -webkit-justify-content: center; justify-content: center; margin-top: 12px; }
+.navpill { display: -webkit-flex; display: flex; padding: 3px; border-radius: 22px; background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07); }
+#nav button { -webkit-appearance: none; border: 0; background: transparent; font-family: inherit; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.5px; color: rgba(235,240,247,0.5); height: 34px; padding: 0 18px; border-radius: 17px;
+  -webkit-transition: background 0.25s, color 0.25s; transition: background 0.25s, color 0.25s; }
+#nav button.on { background: rgba(255,255,255,0.13); color: #f2f4f7; }
+
+/* ---------- Forecast ---------- */
+.fhead { display: -webkit-flex; display: flex; -webkit-align-items: flex-end; align-items: flex-end; margin-bottom: 16px; }
+.fhead .grow { -webkit-flex: 1; flex: 1; }
+.fhead h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; }
+#f-sub { font-size: 17px; color: rgba(235,240,247,0.65); margin-top: 4px; }
+.seg { display: -webkit-flex; display: flex; padding: 3px; border-radius: 24px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08); }
+.seg button { -webkit-appearance: none; border: 0; background: transparent; font-family: inherit; font-size: 15px; font-weight: 700;
+  color: rgba(235,240,247,0.6); height: 42px; padding: 0 26px; border-radius: 21px; }
+.seg button.on { background: #f2f4f7; color: #10151c; }
+#f-day, #f-week { -webkit-flex: 1; flex: 1; min-height: 0; display: -webkit-flex; display: flex; }
+#f-day .chart { -webkit-flex: 1; flex: 1; min-width: 0; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; padding: 16px 18px 10px; }
+#daychart { -webkit-flex: 1; flex: 1; min-height: 0; margin-top: 6px; }
+.tiles { width: 330px; margin-left: 18px; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.trow { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; min-height: 0; }
+.trow + .trow { margin-top: 14px; }
+.tile { -webkit-flex: 1; flex: 1; min-width: 0; padding: 12px 16px; display: -webkit-flex; display: flex;
+  -webkit-flex-direction: column; flex-direction: column; -webkit-justify-content: center; justify-content: center; }
+.tile + .tile { margin-left: 14px; }
+.tile b { font-size: 30px; font-weight: 300; letter-spacing: -0.5px; margin-top: 6px; white-space: nowrap; }
+.tile small { font-size: 13px; color: rgba(235,240,247,0.55); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#f-week .card { -webkit-flex: 1; flex: 1; padding: 4px 24px; display: -webkit-flex; display: flex; }
+#week-rows { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column; }
+.wrow { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.06); }
+.wrow:last-child { border-bottom: 0; }
+.wday { width: 140px; font-size: 21px; font-weight: 700; }
+.wrow.today .wday { color: #ffd38a; }
+.wicon { width: 52px; }
+.wicon svg { display: block; }
+.wdesc { width: 160px; font-size: 16px; color: rgba(235,240,247,0.6); }
+.wrain { width: 58px; font-size: 15px; font-weight: 700; color: #7fbcff; }
+.wlo, .whi { width: 52px; font-size: 22px; }
+.wlo { text-align: right; color: rgba(235,240,247,0.55); }
+.wbar { -webkit-flex: 1; flex: 1; position: relative; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.08); margin: 0 18px; }
+.wfill { position: absolute; top: 0; bottom: 0; border-radius: 4px; background-image: linear-gradient(90deg, #6fa8ff, #9fd3c7 35%, #ffd38a 65%, #ff8f5a); background-repeat: no-repeat; }
+.wdot { position: absolute; top: -4px; width: 16px; height: 16px; margin-left: -8px; border-radius: 8px; background: #fff; border: 3px solid #13283f; }
+
+/* ---------- Clock ---------- */
+.cwrap { -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+#c-time { font-size: 250px; font-weight: 300; line-height: 0.9; letter-spacing: -12px; white-space: nowrap; }
+#c-time .side { display: inline-block; vertical-align: top; margin: 34px 0 0 22px; letter-spacing: 0; text-align: left; }
+#c-time .sec { display: block; font-size: 58px; color: rgba(235,240,247,0.45); line-height: 1; }
+#c-time .ap { display: block; font-size: 30px; font-weight: 500; color: rgba(235,240,247,0.45); margin-top: 10px; }
+#c-date { font-size: 30px; color: rgba(235,240,247,0.7); margin-top: 22px; }
+.chips { display: -webkit-flex; display: flex; margin-top: 46px; max-width: 100%; }
+.chip { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; height: 58px; padding: 0 22px;
+  margin: 0 7px; border-radius: 29px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  font-size: 19px; white-space: nowrap; min-width: 0; }
+.chip svg { margin-right: 10px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.chip .bullet.sm { margin-right: 10px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.chip span { overflow: hidden; text-overflow: ellipsis; }
+#c-music { max-width: 380px; }
+
+/* ---------- Music ---------- */
+#view-music { position: relative; overflow: hidden; border-radius: 22px; }
+#m-bg { position: absolute; top: -80px; left: -80px; right: -80px; bottom: -80px; background-size: cover; background-position: center;
+  -webkit-filter: blur(70px) saturate(1.5); filter: blur(70px) saturate(1.5); opacity: 0;
+  -webkit-transition: opacity 1.2s; transition: opacity 1.2s; }
+#m-body { position: relative; -webkit-flex: 1; flex: 1; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+.mp { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; width: 100%; padding: 0 36px; }
+#m-art { width: 380px; height: 380px; border-radius: 18px; object-fit: cover; background: rgba(255,255,255,0.06);
+  box-shadow: 0 30px 70px rgba(0,0,0,0.5); -webkit-flex-shrink: 0; flex-shrink: 0; }
+.mi { -webkit-flex: 1; flex: 1; min-width: 0; margin-left: 46px; }
+#m-title { font-size: 40px; font-weight: 700; line-height: 1.1; letter-spacing: -0.5px; margin-top: 10px;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#m-artist { font-size: 24px; color: rgba(235,240,247,0.78); margin-top: 8px; }
+#m-album { font-size: 17px; color: rgba(235,240,247,0.5); margin-top: 4px; }
+.mprog { margin-top: 30px; }
+.mprog .bar { margin-top: 0; }
+#m-fill { height: 100%; width: 0; border-radius: 3px; background: #f2f4f7; -webkit-transition: width 1s linear; transition: width 1s linear; }
+.mt { display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between;
+  font-size: 14px; color: rgba(235,240,247,0.55); margin-top: 8px; }
+.mctl { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-top: 24px; }
+.mctl button { -webkit-appearance: none; border: 0; width: 64px; height: 64px; border-radius: 32px; margin-right: 18px;
+  background: rgba(255,255,255,0.12); color: #f2f4f7; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; }
+.mctl button svg { width: 26px; height: 26px; }
+.mctl button.big { width: 84px; height: 84px; border-radius: 42px; background: #f2f4f7; color: #10151c; }
+.mctl button.big svg { width: 34px; height: 34px; }
+.mctl button:active { opacity: 0.7; }
+#m-msg, #cal-msg { margin-top: 14px; min-height: 20px; font-size: 15px; color: #ffb4a6; }
+.mcard { max-width: 640px; padding: 32px 36px; }
+.mcard h2 { font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+.mcard p { font-size: 17px; line-height: 1.5; color: rgba(235,240,247,0.72); }
+.mcard ol { margin: 14px 0 0 22px; font-size: 16px; line-height: 1.75; color: rgba(235,240,247,0.82); }
+.mcard code { font-size: 14px; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; word-break: break-all; }
+.mrow { display: -webkit-flex; display: flex; margin-top: 20px; }
+#m-id, #cal-url { -webkit-flex: 1; flex: 1; min-width: 0; height: 50px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(0,0,0,0.25); color: #fff; font-family: inherit; font-size: 17px; font-weight: 500; padding: 0 16px;
+  -webkit-user-select: text; user-select: text; }
+.btn { -webkit-appearance: none; height: 50px; padding: 0 26px; border-radius: 25px; border: 0; background: #1ed760; color: #06240f;
+  font-family: inherit; font-size: 16px; font-weight: 700; margin-left: 10px; }
+.mcard .btn { margin-left: 0; margin-top: 20px; }
+.mrow .btn { margin-top: 0; margin-left: 10px; }
+.link { -webkit-appearance: none; background: none; border: 0; padding: 0; margin-top: 18px; color: rgba(235,240,247,0.55);
+  font-family: inherit; font-size: 14px; font-weight: 600; text-decoration: underline; display: block; }
+
+/* ---------- Tappable Home cards and the zoom-out transition ---------- */
+.tap { cursor: pointer; -webkit-transition: -webkit-transform 0.15s ease, opacity 0.15s; transition: transform 0.15s ease, opacity 0.15s; }
+.tap:active { -webkit-transform: scale(0.985); transform: scale(0.985); opacity: 0.85; }
+.view.expand { -webkit-animation: expand 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); animation: expand 0.42s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@-webkit-keyframes expand { from { opacity: 0; -webkit-transform: scale(0.3); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes expand { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: none; } }
+
+/* ---------- Trains screen ---------- */
+#view-trains .fhead { -webkit-align-items: center; align-items: center; }
+.tvsub { font-size: 17px; color: rgba(235,240,247,0.65); margin-top: 2px; }
+#tv-grid { -webkit-flex: 1; flex: 1; min-height: 0; display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap;
+  -webkit-align-content: stretch; align-content: stretch; margin: 0 -7px; }
+.tv { position: relative; overflow: hidden; width: -webkit-calc(50% - 14px); width: calc(50% - 14px); height: -webkit-calc(25% - 14px); height: calc(25% - 14px);
+  margin: 7px; padding: 0 22px; border-radius: 18px; background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.07);
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.tv .bullet { margin-right: 18px; -webkit-flex-shrink: 0; flex-shrink: 0; }
+.tv .m { -webkit-flex: 1; flex: 1; font-size: 50px; font-weight: 300; letter-spacing: -2px; }
+.tv .m small { font-size: 20px; font-weight: 500; letter-spacing: 0; margin-left: 6px; color: rgba(235,240,247,0.55); }
+.tv .at { text-align: right; font-size: 19px; color: rgba(235,240,247,0.7); white-space: nowrap; }
+.tv .at b { display: block; font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(235,240,247,0.45); margin-bottom: 3px; }
+.tv.first { background: rgba(0,147,60,0.14); border-color: rgba(60,200,120,0.25); }
+.tv.first .at b { color: #6be39a; }
+.tv.soon .m, .tv.soon .at b { color: #ffd166; }
+.tv .tb { position: absolute; left: 0; bottom: 0; height: 4px; background: #2fd07a; -webkit-transition: width 5s linear; transition: width 5s linear; }
+.tv.soon .tb { background: #ffd166; }
+#tv-foot { padding-top: 12px; }
+#tv-foot .bad { color: #ff9c9c; }
+#live2 { width: 8px; height: 8px; border-radius: 4px; background: #5b6470; margin-right: 8px; }
+#live2.on { background: #2fd07a; -webkit-animation: pulse 2.4s ease-in-out infinite; animation: pulse 2.4s ease-in-out infinite; }
+#live2.bad { background: #ff7a7a; }
+#view-trains .empty { width: 100%; padding: 20px 8px; }
+
+/* Night: dimmed from 9pm to 6am. Tap anywhere to brighten for a minute. */
+body.night #wrap { opacity: 0.32; }
+body.night.wake #wrap { opacity: 1; }
+
+@-webkit-keyframes spin { to { -webkit-transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@-webkit-keyframes rise { from { opacity: 0; -webkit-transform: translateY(10px); } to { opacity: 1; -webkit-transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@-webkit-keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@-webkit-keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,209,102,0); } 50% { box-shadow: 0 0 0 6px rgba(255,209,102,0.18); } }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,209,102,0); } 50% { box-shadow: 0 0 0 6px rgba(255,209,102,0.18); } }
+</style>
+</head>
+<body>
+<div class="sky" id="skyA"></div>
+<div class="sky" id="skyB"></div>
+
+<div id="wrap">
+<div class="view" id="view-home">
+  <div class="row">
+    <div class="left">
+      <div class="head">
+        <div class="grow tap" data-go="clock">
+          <div id="clock" class="num">--:--</div>
+          <div id="date"></div>
+        </div>
+        <div class="now tap" data-go="forecast">
+          <div class="now-top"><div id="now-icon"></div><div id="now-temp" class="num">--&deg;</div></div>
+          <div id="now-desc">Loading forecast&hellip;</div>
+        </div>
+      </div>
+
+      <div class="card tap" id="wcard" data-go="forecast">
+        <div class="label" id="w-label">Today &middot; East Village</div>
+        <div class="stats num">
+          <div class="stat"><span class="label">High</span><b id="s-hi">--</b></div>
+          <div class="stat"><span class="label">Low</span><b id="s-lo">--</b></div>
+          <div class="stat"><span class="label">Rain</span><b id="s-rain">--</b></div>
+          <div class="stat"><span class="label">Wind</span><b id="s-wind">--</b></div>
+          <div class="stat"><span class="label">Sunrise</span><b id="sunrise">--</b></div>
+          <div class="stat"><span class="label">Sunset</span><b id="sunset">--</b></div>
+        </div>
+        <div class="rule"></div>
+        <div class="hwrap">
+          <div id="hourly"></div>
+          <div class="modes" id="modes">
+            <button type="button" data-mode="temp">Temp</button>
+            <button type="button" data-mode="rain">Rain</button>
+            <button type="button" data-mode="feels">Feels</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="card tap" id="tcard" data-go="trains">
+        <div class="thead">
+          <div class="bullet">6</div>
+          <div class="grow"><div class="ttitle">Uptown</div><div class="tsub">Astor Place</div></div>
+          <button id="refresh" class="rbtn" type="button"></button>
+        </div>
+        <div class="hero" id="hero">
+          <div class="hero-row">
+            <div id="hero-min" class="num">&ndash;</div><div id="hero-unit"></div>
+            <div id="hero-at" class="num"><b>Next train</b><span id="hero-time"></span></div>
+          </div>
+          <div class="bar"><div id="bar-fill"></div></div>
+        </div>
+        <div id="tlist"></div>
+        <div class="tfoot"><div id="live"></div><div id="t-status">Connecting&hellip;</div></div>
+      </div>
+      <!-- Spotify mini player (tap the art or title for the full Music screen) -->
+      <div class="card tap" id="mini" data-go="music"></div>
+    </div>
+  </div>
+
+  <div class="brow">
+    <!-- Today's calendar (tap for the Calendar screen) -->
+    <div class="card tap" id="agenda" data-go="calendar"></div>
+    <div class="card" id="vocab">
+      <div class="vleft">
+        <div class="label">Word of the day</div>
+        <div><span id="v-word"></span><span id="v-pos"></span></div>
+      </div>
+      <div class="vright">
+        <div id="v-def"></div>
+        <div id="v-ex"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Calendar: today and tomorrow from Google Calendar -->
+<div class="view off" id="view-calendar">
+  <div class="fhead">
+    <div class="grow"><h1>Calendar</h1><div class="tvsub" id="cal-sub"></div></div>
+  </div>
+  <div id="cal-body"></div>
+</div>
+
+<!-- Trains: next 8 uptown 6 trains -->
+<div class="view off" id="view-trains">
+  <div class="fhead">
+    <div class="bullet">6</div>
+    <div class="grow"><h1>Uptown</h1><div class="tvsub">Astor Place &middot; next trains toward the Bronx</div></div>
+    <button id="refresh2" class="rbtn" type="button"></button>
+  </div>
+  <div id="tv-grid"></div>
+  <div class="tfoot" id="tv-foot"></div>
+</div>
+
+<!-- Forecast: Day (next 24 hours) and Week (7 days) -->
+<div class="view off" id="view-forecast">
+  <div class="fhead">
+    <div class="grow"><h1>Forecast</h1><div id="f-sub">Loading&hellip;</div></div>
+    <div class="seg"><button type="button" id="f-day-btn">Day</button><button type="button" id="f-week-btn">Week</button></div>
+  </div>
+  <div id="f-day">
+    <div class="card chart"><div class="label">Next 24 hours</div><div id="daychart"></div></div>
+    <div class="tiles" id="f-tiles"></div>
+  </div>
+  <div id="f-week">
+    <div class="card"><div id="week-rows"></div></div>
+  </div>
+</div>
+
+<!-- Clock: big full-screen time -->
+<div class="view off" id="view-clock">
+  <div class="cwrap">
+    <div id="c-time" class="num"></div>
+    <div id="c-date"></div>
+    <div class="chips">
+      <div class="chip" id="c-wx"></div>
+      <div class="chip" id="c-train"></div>
+      <div class="chip" id="c-music" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Music: Spotify now playing -->
+<div class="view off" id="view-music">
+  <div id="m-bg"></div>
+  <div id="m-body"></div>
+</div>
+
+<nav id="nav"><div class="navpill">
+  <button type="button" id="nav-home" data-view="home">Home</button>
+  <button type="button" id="nav-trains" data-view="trains">Trains</button>
+  <button type="button" id="nav-calendar" data-view="calendar">Calendar</button>
+  <button type="button" id="nav-forecast" data-view="forecast">Forecast</button>
+  <button type="button" id="nav-clock" data-view="clock">Clock</button>
+  <button type="button" id="nav-music" data-view="music">Music</button>
+</div></nav>
+</div>
+
+<script src="words.js"></script>
+<script>
+// ES5 only (iOS 9): no let/const, arrow functions, fetch, Promise, or template strings.
+(function () {
+  // ---------- Settings ----------
+  // MTA GTFS-realtime feed for the 1-6 and S. No key needed; sends CORS headers; its certificate
+  // chains to a root iOS 9 trusts.
+  var MTA_FEED = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs';
+  var STOP_ID = '636N';                 // Astor Place, northbound (uptown)
+  var ROUTES = { '6': 1, '6X': 1 };     // 6X (Pelham express) runs local in Manhattan
+  // Protocol-relative on purpose: a page served over http (iOS 9, which doesn't trust Open-Meteo's
+  // https certificate) fetches over http; a page served over https (modern iPadOS) uses https,
+  // since newer Safari blocks http requests from https pages.
+  var WEATHER_URL = '//api.open-meteo.com/v1/forecast?latitude=40.7290&longitude=-73.9910' +
+    '&current=temperature_2m,apparent_temperature,weather_code,is_day' +
+    '&hourly=temperature_2m,apparent_temperature,precipitation_probability,weather_code,is_day,relative_humidity_2m' +
+    '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset,wind_speed_10m_max,uv_index_max,precipitation_sum' +
+    '&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FNew_York&forecast_days=7';
+
+  // Auto-update schedule (minutes after midnight). Tapping Refresh always fetches immediately.
+  var RUSH_START = 7 * 60 + 45;   // 7:45am - every minute
+  var RUSH_END = 8 * 60 + 15;     // 8:15am - then every 10 minutes
+  var QUIET_START = 22 * 60;      // 10pm  - no auto-updates until 7:45am
+  var RUSH_EVERY = 60, DAY_EVERY = 600;   // seconds
+
+  var DIM_START = 21, DIM_END = 6;        // dim the screen from 9pm to 6am
+  var WAKE_SECONDS = 60;                  // a tap while dimmed brightens it for this long
+
+  var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  var trains = [], trainsAt = 0, trainsErr = false, trainsBusy = false, trainTimer = null, freshRows = false;
+  var weather = null;
+
+  function $(id) { return document.getElementById(id); }
+  function now() { return Date.now() / 1000; }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmtTime(d) { return (d.getHours() % 12 || 12) + ':' + pad(d.getMinutes()); }
+  function fmtDur(mins) { mins = Math.max(0, Math.round(mins)); var h = Math.floor(mins / 60);
+    return h ? h + 'h ' + pad(mins % 60) + 'm' : mins + ' min'; }
+
+  function get(url, binary, cb) {
+    var x = new XMLHttpRequest();
+    x.open('GET', url, true);
+    if (binary) x.responseType = 'arraybuffer';
+    x.timeout = 20000;
+    x.onload = function () { x.status === 200 ? cb(null, x.response) : cb(new Error('HTTP ' + x.status)); };
+    x.onerror = x.ontimeout = function () { cb(new Error('network')); };
+    x.send();
+  }
+
+  // ---------- Icons (24x24 line art, drawn in SVG so they look the same everywhere) ----------
+  var CLOUD = 'M7 19h10a4.2 4.2 0 0 0 .6-8.36A5.6 5.6 0 0 0 6.9 9.6 4.7 4.7 0 0 0 7 19z';
+  function sunG(cx, cy, r, col) {
+    var s = '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="' + col + '"/>';
+    for (var i = 0; i < 8; i++) {
+      var a = i * Math.PI / 4, c = Math.cos(a), n = Math.sin(a);
+      s += '<line x1="' + (cx + c * (r + 2.4)).toFixed(2) + '" y1="' + (cy + n * (r + 2.4)).toFixed(2) +
+        '" x2="' + (cx + c * (r + 4.6)).toFixed(2) + '" y2="' + (cy + n * (r + 4.6)).toFixed(2) +
+        '" stroke="' + col + '" stroke-width="1.7" stroke-linecap="round"/>';
+    }
+    return s;
+  }
+  var MOON = '<path d="M15.8 3.6a8.6 8.6 0 1 0 4.6 15.2A7.2 7.2 0 0 1 15.8 3.6z" fill="#cdd6ff"/>';
+  function cloudG(dy, col) { return '<path transform="translate(0,' + dy + ')" d="' + CLOUD + '" fill="' + (col || '#dfe5ee') + '"/>'; }
+  function iconInner(kind) {
+    switch (kind) {
+      case 'sun': return sunG(12, 12, 4.6, '#ffc861');
+      case 'moon': return MOON;
+      case 'partly': return sunG(8.5, 8.5, 3.4, '#ffc861') + cloudG(1.5);
+      case 'partly-night': return '<g transform="translate(-3,-3) scale(0.75)">' + MOON + '</g>' + cloudG(1.5);
+      case 'cloud': return cloudG(-1);
+      case 'fog': return cloudG(-4, '#c7cfda') + '<path d="M5 19.5h14M7 22.5h10" stroke="#aeb7c2" stroke-width="1.7" stroke-linecap="round"/>';
+      case 'rain': return cloudG(-4) + '<path d="M8.5 17.5l-1 3M12.5 17.5l-1 3M16.5 17.5l-1 3" stroke="#6fb3ff" stroke-width="1.8" stroke-linecap="round"/>';
+      case 'snow': return cloudG(-4) + '<circle cx="8" cy="19" r="1.2" fill="#e8f1ff"/><circle cx="12" cy="21.5" r="1.2" fill="#e8f1ff"/><circle cx="16" cy="19" r="1.2" fill="#e8f1ff"/>';
+      case 'storm': return cloudG(-4) + '<path d="M12.8 15.5l-3 4.6h3l-1.6 3.9 4.4-5.6h-3l1.6-2.9z" fill="#ffd95e"/>';
+    }
+    return '';
+  }
+  function iconKind(code, isDay) {
+    var night = isDay === 0;
+    if (code <= 1) return night ? 'moon' : 'sun';
+    if (code === 2) return night ? 'partly-night' : 'partly';
+    if (code === 3) return 'cloud';
+    if (code === 45 || code === 48) return 'fog';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if (code >= 95) return 'storm';
+    return 'rain';
+  }
+  function wxText(code) {
+    if (code === 0) return 'Clear';
+    if (code === 1) return 'Mostly clear';
+    if (code === 2) return 'Partly cloudy';
+    if (code === 3) return 'Cloudy';
+    if (code === 45 || code === 48) return 'Fog';
+    if (code >= 51 && code <= 57) return 'Drizzle';
+    if (code >= 61 && code <= 67) return code >= 65 ? 'Heavy rain' : 'Rain';
+    if (code >= 71 && code <= 77) return 'Snow';
+    if (code >= 80 && code <= 82) return 'Showers';
+    if (code === 85 || code === 86) return 'Snow showers';
+    if (code >= 95) return 'Thunderstorms';
+    return '';
+  }
+  function svg(w, h, inner) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + inner + '</svg>';
+  }
+  var REFRESH_ICON = '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M20.5 3.5v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // ---------- Minimal protobuf reader for GTFS-realtime ----------
+  // Uses multiplication instead of bit shifts so 64-bit timestamps don't overflow.
+  function varint(b, p) {
+    var r = 0, m = 1, x;
+    do { x = b[p.i++]; r += (x & 127) * m; m *= 128; } while (x & 128);
+    return r;
+  }
+  function each(b, start, end, fn) {
+    var p = { i: start };
+    while (p.i < end) {
+      var key = varint(b, p), f = Math.floor(key / 8), w = key & 7;
+      if (w === 0) fn(f, w, varint(b, p), 0);
+      else if (w === 2) { var len = varint(b, p); fn(f, w, p.i, p.i + len); p.i += len; }
+      else if (w === 1) p.i += 8;
+      else if (w === 5) p.i += 4;
+      else throw new Error('bad wire type');
+    }
+  }
+  function str(b, s, e) { var o = ''; for (var i = s; i < e; i++) o += String.fromCharCode(b[i]); return o; }
+  function eventTime(b, s, e) { var t = 0; each(b, s, e, function (f, w, v) { if (f === 2 && w === 0) t = v; }); return t; }
+
+  // FeedMessage(2 entity) > FeedEntity(3 trip_update) > TripUpdate(1 trip > 5 route_id, 2 stop_time_update)
+  // StopTimeUpdate: 2 arrival, 3 departure, 4 stop_id
+  function parseFeed(buf) {
+    var b = new Uint8Array(buf), out = [];
+    each(b, 0, b.length, function (f, w, s, e) {
+      if (f !== 2 || w !== 2) return;
+      each(b, s, e, function (f2, w2, s2, e2) {
+        if (f2 !== 3 || w2 !== 2) return;
+        var route = null, stus = [];
+        each(b, s2, e2, function (f3, w3, s3, e3) {
+          if (w3 !== 2) return;
+          if (f3 === 1) each(b, s3, e3, function (f4, w4, s4, e4) { if (f4 === 5 && w4 === 2) route = str(b, s4, e4); });
+          else if (f3 === 2) stus.push([s3, e3]);
+        });
+        if (!ROUTES[route]) return;
+        for (var i = 0; i < stus.length; i++) {
+          var sid = null, arr = 0, dep = 0;
+          each(b, stus[i][0], stus[i][1], function (f5, w5, s5, e5) {
+            if (w5 !== 2) return;
+            if (f5 === 4) sid = str(b, s5, e5);
+            else if (f5 === 2) arr = eventTime(b, s5, e5);
+            else if (f5 === 3) dep = eventTime(b, s5, e5);
+          });
+          if (sid === STOP_ID && (arr || dep)) out.push({ route: route, time: arr || dep });
+        }
+      });
+    });
+    out.sort(function (a, c) { return a.time - c.time; });
+    return out;
+  }
+
+  // ---------- Trains ----------
+  function setButton(state, text) {   // the Refresh buttons on Home and on the Trains screen
+    var ids = ['refresh', 'refresh2'];
+    for (var i = 0; i < ids.length; i++) {
+      $(ids[i]).className = 'rbtn ' + state;
+      $(ids[i]).innerHTML = REFRESH_ICON + text;
+    }
+  }
+
+  function loadTrains(manual) {
+    if (trainsBusy) return;
+    trainsBusy = true;
+    if (manual) setButton('busy', 'Updating');
+    get(MTA_FEED + '?t=' + Date.now(), true, function (err, buf) {
+      trainsBusy = false;
+      if (!err) {
+        try { trains = parseFeed(buf); trainsAt = now(); trainsErr = false; freshRows = true; } catch (e) { err = e; }
+      }
+      if (err) trainsErr = true;
+      if (manual) {
+        setButton(err ? 'fail' : 'done', err ? 'Try again' : 'Updated');
+        setTimeout(function () { setButton('', 'Refresh'); }, err ? 5000 : 2000);
+      }
+      renderTrains();
+      scheduleTrains();
+    });
+  }
+
+  function minuteOfDay(d) { return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; }
+
+  // Seconds between auto-updates right now, or 0 when paused overnight.
+  function currentInterval() {
+    var m = minuteOfDay(new Date());
+    if (m >= RUSH_START && m < RUSH_END) return RUSH_EVERY;
+    if (m >= RUSH_END && m < QUIET_START) return DAY_EVERY;
+    return 0;
+  }
+
+  function scheduleTrains() {
+    clearTimeout(trainTimer);
+    var every = currentInterval(), wait;
+    if (every) {
+      wait = every * 1000;
+    } else {
+      // Paused: sleep until 7:45am (later tonight -> tomorrow morning).
+      var d = new Date(), wake = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 45, 0);
+      if (wake <= d) wake.setDate(wake.getDate() + 1);
+      wait = wake - d;
+    }
+    // Re-check when the timer fires, so a 10-minute timer that runs past 10pm doesn't fetch.
+    trainTimer = setTimeout(function () { currentInterval() ? loadTrains(false) : scheduleTrains(); }, wait);
+  }
+
+  function bullet(route, cls) {
+    return route === '6X' ? '<div class="bullet x ' + cls + '"><span>6</span></div>' : '<div class="bullet ' + cls + '">6</div>';
+  }
+
+  function renderTrains() {
+    var t = now(), up = [];
+    for (var i = 0; i < trains.length && up.length < 8; i++) {
+      var secs = trains[i].time - t;
+      if (secs >= -20) up.push({ route: trains[i].route, time: trains[i].time, secs: Math.max(0, secs) });
+    }
+    var every = currentInterval(), age = t - trainsAt;
+    var hero = $('hero'), first = up[0];
+
+    if (first) {
+      var mins = Math.floor(first.secs / 60);
+      hero.style.display = '';
+      hero.className = 'hero' + (mins <= 2 ? ' soon' : '') + (first.secs < 60 ? ' arriving' : '');
+      $('hero-min').innerHTML = first.secs < 60 ? 'Now' : mins;
+      $('hero-unit').innerHTML = first.secs < 60 ? '' : 'min';
+      $('hero-time').innerHTML = (first.route === '6X' ? '&#9670;6 express &middot; ' : '') + fmtTime(new Date(first.time * 1000));
+      $('hero-at').getElementsByTagName('b')[0].innerHTML = first.secs < 60 ? 'Arriving' : 'Next train';
+      // Bar fills as the train approaches (full = arriving; empty = 15+ minutes away).
+      $('bar-fill').style.width = Math.round(Math.max(0, Math.min(1, 1 - first.secs / 900)) * 100) + '%';
+    } else {
+      hero.style.display = 'none';
+    }
+
+    var html = '';
+    for (var j = 1; j < up.length && j < 3; j++) {   // next train in the big card + 2 more = 3 trains
+      var m = Math.floor(up[j].secs / 60);
+      html += '<div class="train' + (freshRows ? ' fresh' : '') + '"' + (freshRows ? ' style="-webkit-animation-delay:' + (j * 70) + 'ms;animation-delay:' + (j * 70) + 'ms"' : '') + '>' +
+        bullet(up[j].route, 'sm') + '<div class="m num">' + m + '<small>min</small></div>' +
+        '<div class="at num">' + fmtTime(new Date(up[j].time * 1000)) + '</div></div>';
+    }
+    if (!first) {
+      html = '<div class="empty">' + (!trainsAt ? (trainsErr ? 'Can&rsquo;t reach the MTA. Check the Wi-Fi, then tap Refresh.' : 'Loading trains&hellip;') :
+        (!every && age > 300) ? 'Auto-updates are paused overnight.<br>Tap Refresh for current times.' :
+        'No uptown 6 trains reported right now.') + '</div>';
+    }
+    $('tlist').innerHTML = html;
+    freshRows = false;
+
+    // Status line: warn only if an update is overdue for the current schedule (or the last one failed).
+    var stale = trainsErr || (every && trainsAt && age > every * 1.5 + 30);
+    $('live').className = stale ? 'bad' : (every ? 'on' : '');
+    $('t-status').className = stale ? 'bad' : '';
+    $('t-status').innerHTML = !trainsAt ? (trainsErr ? 'Offline' : 'Connecting&hellip;') :
+      (stale ? 'May be out of date &middot; ' : '') + 'Updated ' + fmtTime(new Date(trainsAt * 1000)) +
+      (every ? ' &middot; every ' + (every === 60 ? 'minute' : '10 min') : ' &middot; paused until 7:45');
+    renderTrainsView(up, stale);
+  }
+
+  // Trains screen: the next 8 uptown trains as a 2-column grid; the first one highlighted with a
+  // countdown bar, the rest showing the gap after the train before.
+  function renderTrainsView(up, stale) {
+    if (view !== 'trains') return;
+    var html = '';
+    for (var i = 0; i < up.length && i < 8; i++) {
+      var m = Math.floor(up[i].secs / 60), first = i === 0;
+      var label = first ? (up[i].secs < 60 ? 'Arriving' : 'Next train') : '+' + Math.max(0, Math.round((up[i].time - up[i - 1].time) / 60)) + ' min after';
+      html += '<div class="tv' + (first ? ' first' : '') + (m <= 2 ? ' soon' : '') + '">' + bullet(up[i].route, '') +
+        '<div class="m num">' + (up[i].secs < 60 ? 'Now' : m + '<small>min</small>') + '</div>' +
+        '<div class="at num"><b>' + label + '</b>' + (up[i].route === '6X' ? '&#9670; express &middot; ' : '') + fmtTime(new Date(up[i].time * 1000)) + '</div>' +
+        (first ? '<div class="tb" style="width:' + Math.round(Math.max(0, Math.min(1, 1 - up[i].secs / 900)) * 100) + '%"></div>' : '') + '</div>';
+    }
+    $('tv-grid').innerHTML = html || '<div class="empty">' + $('tlist').innerHTML.replace(/<[^>]+>/g, ' ') + '</div>';
+    $('tv-foot').innerHTML = '<div id="live2" class="' + $('live').className + '"></div><div class="' + (stale ? 'bad' : '') + '">' + $('t-status').innerHTML + '</div>';
+  }
+
+  // ---------- Weather ----------
+  // Open-Meteo returns local times like "2026-11-16T06:43". Parse by hand; old Safari's Date parsing is unreliable.
+  function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function hourKey(d) { return dayKey(d) + 'T' + pad(d.getHours()) + ':00'; }
+  function mins(s) { return parseInt(s.substr(11, 2), 10) * 60 + parseInt(s.substr(14, 2), 10); }
+  function fmtHM(s) { var m = mins(s), h = Math.floor(m / 60); return (h % 12 || 12) + ':' + pad(m % 60) + (h < 12 ? ' am' : ' pm'); }
+
+  function loadWeather() {
+    get(WEATHER_URL, false, function (err, txt) {
+      if (!err) { try { weather = JSON.parse(txt); } catch (e) {} }
+      renderWeather();
+      if (view === 'forecast') renderForecast();
+      if (view === 'clock') renderBigClock();
+    });
+  }
+
+  function todayIndex() {
+    var di = weather.daily.time.indexOf(dayKey(new Date()));
+    return di < 0 ? 0 : di;
+  }
+
+  function renderWeather() {
+    var w = weather;
+    if (!w) { $('now-desc').innerHTML = 'Forecast unavailable'; updateSky(); return; }
+    var c = w.current, dly = w.daily, di = todayIndex();
+    $('now-icon').innerHTML = svg(58, 58, '<g transform="scale(2.42)">' + iconInner(iconKind(c.weather_code, c.is_day)) + '</g>');
+    $('now-temp').innerHTML = Math.round(c.temperature_2m) + '&deg;';
+    $('now-desc').innerHTML = wxText(c.weather_code) + ' &middot; feels like ' + Math.round(c.apparent_temperature) + '&deg;';
+    $('w-label').innerHTML = 'Today &middot; ' + wxText(dly.weather_code[di]);
+    $('s-hi').innerHTML = Math.round(dly.temperature_2m_max[di]) + '&deg;';
+    $('s-lo').innerHTML = Math.round(dly.temperature_2m_min[di]) + '&deg;';
+    $('s-rain').innerHTML = dly.precipitation_probability_max[di] + '<small>%</small>';
+    $('s-wind').innerHTML = Math.round(dly.wind_speed_10m_max[di]) + '<small>mph</small>';
+    renderSun();
+    renderHourly();
+    updateSky();
+  }
+
+  // Sunrise / sunset in the stats row: "6:47" with a small "am".
+  function renderSun() {
+    var dly = weather.daily, di = todayIndex();
+    function short(s) { var p = fmtHM(s).split(' '); return p[0] + '<small>' + p[1] + '</small>'; }
+    $('sunrise').innerHTML = short(dly.sunrise[di]);
+    $('sunset').innerHTML = short(dly.sunset[di]);
+  }
+
+  // ---------- Hourly chart: Temp / Rain / Feels (chosen with the buttons beside it) ----------
+  var MODES = {
+    temp:  { field: 'temperature_2m', color: '#ffb46e', dot: '#ffd3a6' },
+    feels: { field: 'apparent_temperature', color: '#c3b2ff', dot: '#e0d6ff' },
+    rain:  { field: 'precipitation_probability', color: '#7fbcff' }
+  };
+  var chartMode = 'temp';
+  try { if (MODES[localStorage.getItem('chartMode')]) chartMode = localStorage.getItem('chartMode'); } catch (e) {}
+
+  function setMode(m) {
+    chartMode = m;
+    try { localStorage.setItem('chartMode', m); } catch (e) {}
+    var bs = $('modes').getElementsByTagName('button');
+    for (var i = 0; i < bs.length; i++) {
+      var bm = bs[i].getAttribute('data-mode');
+      bs[i].className = bm + (bm === m ? ' on' : '');
+    }
+    if (weather) renderHourly();
+  }
+
+  // Next 8 hours: icon on top, then a temperature curve or rain-chance bars, then the hour.
+  function renderHourly() {
+    var hr = weather.hourly, start = hr.time.indexOf(hourKey(new Date()));
+    if (start < 0) { $('hourly').innerHTML = ''; return; }
+    var mode = MODES[chartMode], vals = hr[mode.field] || hr.temperature_2m;
+    var N = 8, pts = [], lo = 999, hi = -999, i;
+    for (i = 0; i < N && start + 1 + i < hr.time.length; i++) {
+      var k = start + 1 + i, tmp = vals[k];
+      pts.push({ k: k, t: tmp });
+      if (tmp < lo) lo = tmp;
+      if (tmp > hi) hi = tmp;
+    }
+    var el = $('hourly'), W = el.clientWidth || 440, H = Math.max(120, Math.min(220, el.clientHeight || 130));
+    var col = W / pts.length, top = 52, bot = H - 42;
+    if (chartMode === 'rain') { renderRain(el, hr, pts, W, H, col, top, H - 24); return; }
+    for (i = 0; i < pts.length; i++) {
+      pts[i].x = col * i + col / 2;
+      pts[i].y = hi === lo ? (top + bot) / 2 : bot - (pts[i].t - lo) / (hi - lo) * (bot - top);
+    }
+    // Smooth curve (Catmull-Rom converted to cubic Bezier).
+    var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+    for (i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      d += ' C' + (p1.x + (p2.x - p0.x) / 6).toFixed(1) + ',' + (p1.y + (p2.y - p0.y) / 6).toFixed(1) + ' ' +
+        (p2.x - (p3.x - p1.x) / 6).toFixed(1) + ',' + (p2.y - (p3.y - p1.y) / 6).toFixed(1) + ' ' +
+        p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+    }
+    var last = pts[pts.length - 1];
+    var g = '<defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + mode.color + '" stop-opacity="0.32"/><stop offset="1" stop-color="' + mode.color + '" stop-opacity="0"/></linearGradient></defs>';
+    g += '<path d="' + d + ' L' + last.x.toFixed(1) + ',' + bot + ' L' + pts[0].x.toFixed(1) + ',' + bot + ' Z" fill="url(#tg)"/>';
+    g += '<path d="' + d + '" fill="none" stroke="' + mode.color + '" stroke-width="2.2" stroke-linecap="round"/>';
+    for (i = 0; i < pts.length; i++) {
+      var q = pts[i], k2 = q.k, h = parseInt(hr.time[k2].substr(11, 2), 10), pr = hr.precipitation_probability[k2];
+      g += '<g transform="translate(' + (q.x - 11).toFixed(1) + ',0) scale(0.92)">' + iconInner(iconKind(hr.weather_code[k2], hr.is_day[k2])) + '</g>';
+      g += '<circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="3.5" fill="' + mode.dot + '"/>';
+      g += '<text x="' + q.x.toFixed(1) + '" y="' + (q.y - 10).toFixed(1) + '" text-anchor="middle" font-size="15" font-weight="700" fill="#f2f4f7" font-family="Manrope">' + Math.round(q.t) + '&#176;</text>';
+      if (pr >= 20) g += '<text x="' + q.x.toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle" font-size="12" font-weight="700" fill="#7fbcff" font-family="Manrope">' + pr + '%</text>';
+      g += '<text x="' + q.x.toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="13" font-weight="500" fill="rgba(235,240,247,0.55)" font-family="Manrope">' +
+        (h % 12 || 12) + (h < 12 ? 'am' : 'pm') + '</text>';
+    }
+    el.innerHTML = svg(W, H, g);
+  }
+
+  // Rain chance: bars on a fixed 0-100% scale (so a 10% hour never looks like a downpour).
+  function renderRain(el, hr, pts, W, H, col, top, bot) {
+    var g = '<defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fbcff"/><stop offset="1" stop-color="#3d7fd6" stop-opacity="0.55"/></linearGradient></defs>';
+    var bw = Math.min(26, col * 0.46), full = bot - top - 14;
+    g += '<line x1="0" y1="' + bot + '" x2="' + W + '" y2="' + bot + '" stroke="rgba(255,255,255,0.12)"/>';
+    for (var i = 0; i < pts.length; i++) {
+      var k = pts[i].k, x = col * i + col / 2, p = pts[i].t || 0, h = parseInt(hr.time[k].substr(11, 2), 10);
+      var bh = Math.max(2, p / 100 * full), y = bot - bh;
+      g += '<g transform="translate(' + (x - 11).toFixed(1) + ',0) scale(0.92)">' + iconInner(iconKind(hr.weather_code[k], hr.is_day[k])) + '</g>';
+      g += '<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + (bot - full).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + full.toFixed(1) + '" rx="' + (bw / 2).toFixed(1) + '" fill="rgba(255,255,255,0.05)"/>';
+      g += '<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '" rx="' + Math.min(bw / 2, bh / 2).toFixed(1) + '" fill="url(#rg)"/>';
+      g += '<text x="' + x.toFixed(1) + '" y="' + (bot - full - 6).toFixed(1) + '" text-anchor="middle" font-size="14" font-weight="700" fill="' + (p >= 30 ? '#cfe6ff' : 'rgba(235,240,247,0.6)') + '" font-family="Manrope">' + p + '%</text>';
+      g += '<text x="' + x.toFixed(1) + '" y="' + (H - 4) + '" text-anchor="middle" font-size="13" font-weight="500" fill="rgba(235,240,247,0.55)" font-family="Manrope">' +
+        (h % 12 || 12) + (h < 12 ? 'am' : 'pm') + '</text>';
+    }
+    el.innerHTML = svg(W, H, g);
+  }
+
+  // ---------- Sky color follows the sun (and goes grey on overcast/rainy days) ----------
+  var SKIES = {
+    night: 'radial-gradient(ellipse at 15% 0%, rgba(70,90,170,0.20), rgba(0,0,0,0) 55%), linear-gradient(180deg, #05070d 0%, #0a1020 100%)',
+    dawn:  'radial-gradient(ellipse at 50% 115%, rgba(255,150,120,0.32), rgba(0,0,0,0) 60%), linear-gradient(180deg, #141428 0%, #2c1c34 100%)',
+    day:   'radial-gradient(ellipse at 85% -10%, rgba(120,180,255,0.24), rgba(0,0,0,0) 55%), linear-gradient(180deg, #0b1726 0%, #14304a 100%)',
+    grey:  'radial-gradient(ellipse at 50% -10%, rgba(200,210,225,0.12), rgba(0,0,0,0) 60%), linear-gradient(180deg, #11161d 0%, #1d2630 100%)',
+    dusk:  'radial-gradient(ellipse at 50% 115%, rgba(255,120,60,0.30), rgba(0,0,0,0) 60%), linear-gradient(180deg, #151329 0%, #38202b 100%)'
+  };
+  var skyNow = '', skyLayer = 0;
+  function skyPhase() {
+    var m = minuteOfDay(new Date()), rise = 6.5 * 60, set = 17 * 60, code = 0;
+    if (weather) { var di = todayIndex(); rise = mins(weather.daily.sunrise[di]); set = mins(weather.daily.sunset[di]); code = weather.current.weather_code; }
+    if (m < rise - 40 || m > set + 50) return 'night';
+    if (m < rise + 50) return 'dawn';
+    if (m > set - 50) return 'dusk';
+    return code >= 3 ? 'grey' : 'day';
+  }
+  function updateSky() {
+    var ph = skyPhase();
+    if (ph === skyNow) return;
+    var a = $('skyA'), b = $('skyB'), next = skyLayer ? a : b, cur = skyLayer ? b : a;
+    next.style.background = SKIES[ph];
+    if (!skyNow) { next.style.webkitTransition = next.style.transition = 'none'; }
+    next.style.opacity = 1; cur.style.opacity = 0;
+    if (!skyNow) setTimeout(function () { next.style.webkitTransition = next.style.transition = ''; }, 50);
+    skyLayer = 1 - skyLayer; skyNow = ph;
+  }
+
+  // ---------- Clock, dimming, vocab, burn-in ----------
+  var lastDay = '', wakeUntil = 0;
+  function renderClock() {
+    var d = new Date(), h = d.getHours();
+    $('clock').innerHTML = fmtTime(d) + '<span id="ampm">' + (h < 12 ? 'AM' : 'PM') + '</span>';
+    $('date').innerHTML = DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    var night = h >= DIM_START || h < DIM_END;
+    document.body.className = (night ? 'night' : '') + (night && now() < wakeUntil ? ' wake' : '');
+    if (dayKey(d) !== lastDay) { lastDay = dayKey(d); renderVocab(d); }
+  }
+
+  function renderVocab(d) {
+    if (typeof WORDS === 'undefined' || !WORDS.length) return;
+    var dayNum = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+    var v = WORDS[dayNum % WORDS.length];
+    $('v-word').innerHTML = esc(v[0]);
+    $('v-pos').innerHTML = esc(v[1]);
+    $('v-def').innerHTML = esc(v[2]);
+    $('v-ex').innerHTML = '“' + esc(v[3]) + '”';
+  }
+
+  function shift() {
+    var h = new Date().getHours();
+    var t = 'translate(' + ((h % 3) * 4 - 4) + 'px,' + ((Math.floor(h / 3) % 3) * 4 - 4) + 'px)';
+    $('wrap').style.webkitTransform = t; $('wrap').style.transform = t;
+  }
+
+  // ---------- Views: Home / Forecast / Clock / Music ----------
+  var VIEWS = ['home', 'trains', 'calendar', 'forecast', 'clock', 'music'];
+  var view = 'home', lastTouch = now();
+  var IDLE_HOME_SECONDS = 180;   // Forecast goes back to Home after 3 min untouched (Clock and Music stay)
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  function showView(v) {
+    view = v;
+    for (var i = 0; i < VIEWS.length; i++) {
+      $('view-' + VIEWS[i]).className = 'view' + (VIEWS[i] === v ? '' : ' off');
+      $('nav-' + VIEWS[i]).className = VIEWS[i] === v ? 'on' : '';
+    }
+    // Charts measure their box, so redraw once the view is visible.
+    if (v === 'home' && weather) renderWeather();
+    if (v === 'forecast') renderForecast();
+    if (v === 'clock') renderBigClock();
+    if (v === 'trains') renderTrains();
+    if (v === 'calendar') { renderCalendar(); loadCalendar(); }
+    if (v === 'music') renderMusic();
+    if (v === 'home') { miniMode = ''; renderMini(); renderAgenda(); }
+    spPoll();
+  }
+
+  // ---------- Forecast ----------
+  var fMode = lsGet('forecastMode') === 'week' ? 'week' : 'day';
+  function setForecastMode(m) {
+    fMode = m;
+    lsSet('forecastMode', m);
+    $('f-day-btn').className = m === 'day' ? 'on' : '';
+    $('f-week-btn').className = m === 'week' ? 'on' : '';
+    renderForecast();
+  }
+  function dateOf(s) { return new Date(+s.substr(0, 4), +s.substr(5, 2) - 1, +s.substr(8, 2)); }
+  function dayName(offset, s) { return offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : DAYS[dateOf(s).getDay()]; }
+  function uvText(u) { return u < 3 ? 'Low' : u < 6 ? 'Moderate' : u < 8 ? 'High' : u < 11 ? 'Very high' : 'Extreme'; }
+
+  function renderForecast() {
+    $('f-day').style.display = fMode === 'day' ? '' : 'none';
+    $('f-week').style.display = fMode === 'week' ? '' : 'none';
+    if (!weather || view !== 'forecast') return;
+    if (fMode === 'week') renderWeek(); else renderDay();
+  }
+
+  function smoothPath(pts) {
+    var d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      d += ' C' + (p1.x + (p2.x - p0.x) / 6).toFixed(1) + ',' + (p1.y + (p2.y - p0.y) / 6).toFixed(1) + ' ' +
+        (p2.x - (p3.x - p1.x) / 6).toFixed(1) + ',' + (p2.y - (p3.y - p1.y) / 6).toFixed(1) + ' ' +
+        p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+    }
+    return d;
+  }
+  function txt(x, y, s, size, weight, fill, anchor) {
+    return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" text-anchor="' + (anchor || 'middle') + '" font-size="' + size +
+      '" font-weight="' + weight + '" fill="' + fill + '" font-family="Manrope">' + s + '</text>';
+  }
+
+  // Day: the next 24 hours. Temperature curve on top, rain-chance bars below, night hours shaded,
+  // sunrise/sunset marked.
+  function renderDay() {
+    var hr = weather.hourly, d = weather.daily, di = todayIndex(), c = weather.current;
+    var start = hr.time.indexOf(hourKey(new Date()));
+    if (start < 0) return;
+    var N = Math.min(25, hr.time.length - start), pts = [], lo = 999, hi = -999, i, k;
+    for (i = 0; i < N; i++) {
+      k = start + i;
+      pts.push({ k: k, t: hr.temperature_2m[k], p: hr.precipitation_probability[k] || 0 });
+      if (hr.temperature_2m[k] < lo) lo = hr.temperature_2m[k];
+      if (hr.temperature_2m[k] > hi) hi = hr.temperature_2m[k];
+    }
+    var el = $('daychart'), W = el.clientWidth || 600, H = el.clientHeight || 360;
+    var padX = 18, step = (W - 2 * padX) / (N - 1);
+    var tTop = 70, tBot = H * 0.55, rTop = H * 0.68, rBot = H - 28;
+    for (i = 0; i < N; i++) {
+      pts[i].x = padX + i * step;
+      pts[i].y = hi === lo ? (tTop + tBot) / 2 : tBot - (pts[i].t - lo) / (hi - lo) * (tBot - tTop);
+    }
+    var g = '<defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb46e" stop-opacity="0.3"/><stop offset="1" stop-color="#ffb46e" stop-opacity="0"/></linearGradient></defs>';
+    for (i = 0; i < N; i++) {
+      if (hr.is_day[pts[i].k] === 0) {
+        g += '<rect x="' + Math.max(0, pts[i].x - step / 2).toFixed(1) + '" y="0" width="' + (step + 0.6).toFixed(1) +
+          '" height="' + rBot.toFixed(1) + '" fill="rgba(130,150,230,0.07)"/>';
+      }
+    }
+    var path = smoothPath(pts);
+    g += '<path d="' + path + ' L' + pts[N - 1].x.toFixed(1) + ',' + tBot.toFixed(1) + ' L' + pts[0].x.toFixed(1) + ',' + tBot.toFixed(1) + ' Z" fill="url(#dg)"/>';
+    g += '<path d="' + path + '" fill="none" stroke="#ffb46e" stroke-width="2.5" stroke-linecap="round"/>';
+
+    g += txt(0, rTop - 10, 'CHANCE OF RAIN', 11, 700, 'rgba(235,240,247,0.42)', 'start');
+    g += '<line x1="0" y1="' + rBot + '" x2="' + W + '" y2="' + rBot + '" stroke="rgba(255,255,255,0.1)"/>';
+    var bw = Math.max(3, step * 0.55);
+    for (i = 0; i < N; i++) {
+      var bh = Math.max(1.5, pts[i].p / 100 * (rBot - rTop));
+      g += '<rect x="' + (pts[i].x - bw / 2).toFixed(1) + '" y="' + (rBot - bh).toFixed(1) + '" width="' + bw.toFixed(1) +
+        '" height="' + bh.toFixed(1) + '" rx="2" fill="rgba(127,188,255,' + (0.3 + 0.6 * pts[i].p / 100).toFixed(2) + ')"/>';
+      if (pts[i].p >= 30 && (i % 3 === 0 || pts[i].p >= 60 && i % 2 === 0)) g += txt(pts[i].x, rBot - bh - 5, pts[i].p + '%', 11, 700, '#9fcbff');
+    }
+    for (i = 0; i < N; i += 3) {
+      var q = pts[i], h = parseInt(hr.time[q.k].substr(11, 2), 10);
+      g += '<g transform="translate(' + (q.x - 13).toFixed(1) + ',6) scale(1.08)">' + iconInner(iconKind(hr.weather_code[q.k], hr.is_day[q.k])) + '</g>';
+      g += '<circle cx="' + q.x.toFixed(1) + '" cy="' + q.y.toFixed(1) + '" r="4" fill="#ffd3a6"/>';
+      g += txt(q.x, q.y - 12, Math.round(q.t) + '&#176;', 16, 700, '#f2f4f7');
+      g += txt(q.x, H - 6, i === 0 ? 'Now' : (h % 12 || 12) + (h < 12 ? 'am' : 'pm'), 13, i === 0 ? 700 : 500, i === 0 ? '#f2f4f7' : 'rgba(235,240,247,0.55)');
+    }
+    // Sunrise / sunset markers (today's and tomorrow's, whichever fall in the window).
+    var sunDays = [di, di + 1];
+    for (var s = 0; s < sunDays.length; s++) {
+      var marks = [[d.sunrise[sunDays[s]], '#ffd38a', '&#8593; '], [d.sunset[sunDays[s]], '#f29a6b', '&#8595; ']];
+      for (var m = 0; m < marks.length; m++) {
+        var iso = marks[m][0];
+        if (!iso) continue;
+        var hi2 = hr.time.indexOf(iso.substr(0, 13) + ':00');
+        if (hi2 < 0) continue;
+        var off = hi2 - start + (mins(iso) % 60) / 60;
+        if (off < 0.3 || off > N - 1.3) continue;
+        var x = padX + off * step;
+        g += '<line x1="' + x.toFixed(1) + '" y1="' + (tTop - 6) + '" x2="' + x.toFixed(1) + '" y2="' + rBot + '" stroke="' + marks[m][1] + '" stroke-width="1.2" stroke-dasharray="3 4" opacity="0.8"/>';
+        g += txt(x, tBot + 18, marks[m][2] + fmtHM(iso), 12, 700, marks[m][1]);
+      }
+    }
+    el.innerHTML = svg(W, H, g);
+
+    function tile(label, value, note) {
+      return '<div class="card tile"><span class="label">' + label + '</span><b class="num">' + value + '</b><small>' + (note || '&nbsp;') + '</small></div>';
+    }
+    var rise = d.sunrise[di], set = d.sunset[di];
+    $('f-tiles').innerHTML =
+      '<div class="trow">' + tile('Feels like', Math.round(c.apparent_temperature) + '&deg;', 'Actual ' + Math.round(c.temperature_2m) + '&deg;') +
+        tile('Humidity', (hr.relative_humidity_2m ? hr.relative_humidity_2m[start] : '--') + '%', 'Right now') + '</div>' +
+      '<div class="trow">' + tile('UV index', Math.round(d.uv_index_max[di]), uvText(d.uv_index_max[di]) + ' at peak') +
+        tile('Wind', Math.round(d.wind_speed_10m_max[di]) + '<small style="display:inline;font-size:15px"> mph</small>', 'Max today') + '</div>' +
+      '<div class="trow">' + tile('Rain today', (d.precipitation_sum[di] || 0).toFixed(2) + '&Prime;', d.precipitation_probability_max[di] + '% chance') +
+        tile('Daylight', fmtDur(mins(set) - mins(rise)), fmtHM(rise) + ' &ndash; ' + fmtHM(set)) + '</div>';
+    $('f-sub').innerHTML = 'East Village &middot; ' + wxText(d.weather_code[di]) + ' &middot; High ' +
+      Math.round(d.temperature_2m_max[di]) + '&deg; &middot; Low ' + Math.round(d.temperature_2m_min[di]) + '&deg;';
+  }
+
+  // Week: one row per day, with a high/low bar on a shared scale (like the iOS Weather app).
+  function renderWeek() {
+    var d = weather.daily, di = todayIndex(), n = Math.min(7, d.time.length - di), lo = 999, hi = -999, i;
+    for (i = di; i < di + n; i++) {
+      if (d.temperature_2m_min[i] < lo) lo = d.temperature_2m_min[i];
+      if (d.temperature_2m_max[i] > hi) hi = d.temperature_2m_max[i];
+    }
+    var span = Math.max(1, hi - lo), html = '', wet = -1, warm = di;
+    for (i = di; i < di + n; i++) {
+      var tl = d.temperature_2m_min[i], th = d.temperature_2m_max[i], pr = d.precipitation_probability_max[i];
+      if (pr >= 50 && (wet < 0 || pr > d.precipitation_probability_max[wet])) wet = i;
+      if (th > d.temperature_2m_max[warm]) warm = i;
+      var dot = '';
+      if (i === di) {
+        var ct = weather.current.temperature_2m;
+        dot = '<i class="wdot" style="left:' + Math.max(0, Math.min(100, (ct - lo) / span * 100)).toFixed(1) + '%"></i>';
+      }
+      // Colour the bar from one gradient spanning the whole week, so cold days read blue and warm days orange.
+      var left = (tl - lo) / span * 100, width = Math.max(4, (th - tl) / span * 100);
+      var gradPos = width >= 100 ? 0 : left / (100 - width) * 100;
+      var fillStyle = 'left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;background-size:' + (10000 / width).toFixed(1) +
+        '% 100%;background-position:' + gradPos.toFixed(1) + '% 0';
+      html += '<div class="wrow' + (i === di ? ' today' : '') + '">' +
+        '<div class="wday">' + dayName(i - di, d.time[i]) + '</div>' +
+        '<div class="wicon">' + svg(36, 36, '<g transform="scale(1.5)">' + iconInner(iconKind(d.weather_code[i], 1)) + '</g>') + '</div>' +
+        '<div class="wdesc">' + wxText(d.weather_code[i]) + '</div>' +
+        '<div class="wrain num">' + (pr >= 20 ? pr + '%' : '') + '</div>' +
+        '<div class="wlo num">' + Math.round(tl) + '&deg;</div>' +
+        '<div class="wbar"><div class="wfill" style="' + fillStyle + '"></div>' + dot + '</div>' +
+        '<div class="whi num">' + Math.round(th) + '&deg;</div></div>';
+    }
+    $('week-rows').innerHTML = html;
+    function when(j) { return j === di ? 'today' : j === di + 1 ? 'tomorrow' : DAYS[dateOf(d.time[j]).getDay()]; }
+    $('f-sub').innerHTML = (wet >= 0 ? 'Rain likely ' + when(wet) + ' (' + d.precipitation_probability_max[wet] + '%)' : 'No rain expected this week') +
+      ' &middot; Warmest ' + when(warm) + ', ' + Math.round(d.temperature_2m_max[warm]) + '&deg;';
+  }
+
+  // ---------- Clock ----------
+  function nextTrainSecs() {
+    var t = now();
+    for (var i = 0; i < trains.length; i++) if (trains[i].time - t >= -20) return Math.max(0, trains[i].time - t);
+    return null;
+  }
+  function renderBigClock() {
+    if (view !== 'clock') return;
+    var d = new Date(), h = d.getHours();
+    $('c-time').innerHTML = fmtTime(d) + '<span class="side"><span class="sec">' + pad(d.getSeconds()) + '</span><span class="ap">' + (h < 12 ? 'AM' : 'PM') + '</span></span>';
+    $('c-date').innerHTML = DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    if (weather) {
+      var c = weather.current;
+      $('c-wx').innerHTML = svg(30, 30, '<g transform="scale(1.25)">' + iconInner(iconKind(c.weather_code, c.is_day)) + '</g>') +
+        '<span>' + Math.round(c.temperature_2m) + '&deg; &middot; ' + wxText(c.weather_code) + '</span>';
+    }
+    var nt = nextTrainSecs();
+    $('c-train').innerHTML = '<div class="bullet sm">6</div><span>' +
+      (nt === null ? 'No uptown trains yet' : nt < 60 ? 'Uptown arriving now' : 'Uptown in ' + Math.floor(nt / 60) + ' min') + '</span>';
+    var st = SP.state;
+    if (st && st.item) {
+      $('c-music').style.display = '';
+      $('c-music').innerHTML = (st.is_playing ? ICON_PLAY : ICON_PAUSE).replace('<svg', '<svg width="18" height="18"') +
+        '<span>' + esc(st.item.name) + ' &middot; ' + esc(artists(st.item)) + '</span>';
+    } else {
+      $('c-music').style.display = 'none';
+    }
+  }
+
+  // ---------- Music (Spotify now playing + controls) ----------
+  // Uses Spotify's Web API with the PKCE sign-in flow, so no server or secret is needed. You create a
+  // free Spotify developer app once and paste its Client ID on the Music screen. Needs an https://
+  // address (or localhost) because sign-in relies on the browser's crypto API. Controls need Premium.
+  var SP_SCOPES = 'user-read-playback-state user-modify-playback-state user-read-currently-playing';
+  var SP_REDIRECT = location.origin + location.pathname;
+  var SP = { id: lsGet('spClientId') || '', state: null, at: 0, busy: false, mode: '', msg: '' };
+  var spTimer = null;
+  var ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l12.5-7.5z" fill="currentColor"/></svg>';
+  var ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z" fill="currentColor"/></svg>';
+  var ICON_PREV = '<svg viewBox="0 0 24 24"><path d="M5.5 5h2.5v14H5.5zM20 5v14L9 12z" fill="currentColor"/></svg>';
+  var ICON_NEXT = '<svg viewBox="0 0 24 24"><path d="M16 5h2.5v14H16zM4 5v14l11-7z" fill="currentColor"/></svg>';
+
+  function spSupported() { return !!(window.isSecureContext && window.crypto && crypto.subtle && window.Promise && window.TextEncoder); }
+  function spConnected() { return !!(SP.id && lsGet('spRefresh')); }
+  function qs(o) { var a = []; for (var k in o) a.push(encodeURIComponent(k) + '=' + encodeURIComponent(o[k])); return a.join('&'); }
+  function b64url(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function artists(it) {
+    if (it.artists) { var a = []; for (var i = 0; i < it.artists.length; i++) a.push(it.artists[i].name); return a.join(', '); }
+    return it.show ? it.show.publisher || it.show.name : '';
+  }
+
+  function spConnect() {
+    var r = new Uint8Array(48);
+    crypto.getRandomValues(r);
+    var verifier = b64url(r.buffer);
+    lsSet('spVerifier', verifier);
+    crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)).then(function (hash) {
+      location.href = 'https://accounts.spotify.com/authorize?' + qs({ client_id: SP.id, response_type: 'code',
+        redirect_uri: SP_REDIRECT, code_challenge_method: 'S256', code_challenge: b64url(hash), scope: SP_SCOPES });
+    });
+  }
+
+  function spToken(params, cb) {
+    var x = new XMLHttpRequest();
+    x.open('POST', 'https://accounts.spotify.com/api/token', true);
+    x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    x.onload = function () {
+      var r = null;
+      try { r = JSON.parse(x.responseText); } catch (e) {}
+      if (x.status === 200 && r && r.access_token) {
+        lsSet('spAccess', r.access_token);
+        lsSet('spExp', String(now() + r.expires_in));
+        if (r.refresh_token) lsSet('spRefresh', r.refresh_token);
+        cb(null);
+      } else {
+        if (r && r.error === 'invalid_grant') { lsDel('spRefresh'); lsDel('spAccess'); }   // revoked or expired sign-in
+        cb(new Error((r && (r.error_description || r.error)) || 'HTTP ' + x.status));
+      }
+    };
+    x.onerror = function () { cb(new Error('network')); };
+    x.send(qs(params));
+  }
+
+  function spEnsure(cb) {
+    if (lsGet('spAccess') && +(lsGet('spExp') || 0) - 60 > now()) return cb(null);
+    if (!spConnected()) return cb(new Error('not connected'));
+    spToken({ grant_type: 'refresh_token', refresh_token: lsGet('spRefresh'), client_id: SP.id }, cb);
+  }
+
+  function spApi(method, path, cb, retried) {
+    spEnsure(function (err) {
+      if (err) return cb(err);
+      var x = new XMLHttpRequest();
+      x.open(method, 'https://api.spotify.com/v1' + path, true);
+      x.setRequestHeader('Authorization', 'Bearer ' + lsGet('spAccess'));
+      x.onload = function () {
+        if (x.status === 401 && !retried) { lsDel('spAccess'); return spApi(method, path, cb, true); }
+        var body = null;
+        try { body = x.responseText ? JSON.parse(x.responseText) : null; } catch (e) {}
+        cb(x.status >= 200 && x.status < 300 ? null : new Error(x.status === 403 ? 'premium' : 'HTTP ' + x.status), body, x.status);
+      };
+      x.onerror = function () { cb(new Error('network')); };
+      x.send();
+    });
+  }
+
+  // Coming back from Spotify's sign-in page with ?code=... in the address.
+  function spHandleRedirect() {
+    var code = /[?&]code=([^&]+)/.exec(location.search), err = /[?&]error=([^&]+)/.exec(location.search);
+    if (!code && !err) return false;
+    try { history.replaceState(null, '', SP_REDIRECT); } catch (e) {}
+    if (err) { SP.msg = 'Spotify sign-in was cancelled.'; return true; }
+    spToken({ grant_type: 'authorization_code', code: decodeURIComponent(code[1]), redirect_uri: SP_REDIRECT,
+      client_id: SP.id, code_verifier: lsGet('spVerifier') || '' }, function (e) {
+      SP.msg = e ? 'Couldn&rsquo;t connect: ' + esc(e.message) : '';
+      lsDel('spVerifier');
+      renderMusic();
+      spPoll();
+    });
+    return true;
+  }
+
+  // Polls every 3 s on Music, 8 s on Home (mini player), 15 s on Clock (now-playing chip), never on Forecast.
+  var SP_POLL = { music: 3000, home: 8000, clock: 15000 };
+  function spPoll() {
+    clearTimeout(spTimer);
+    if (!spConnected() || !SP_POLL[view]) { renderMini(); return; }
+    if (!SP.busy) {
+      SP.busy = true;
+      spApi('GET', '/me/player?additional_types=episode', function (err, body, status) {
+        SP.busy = false;
+        if (!err) { SP.state = status === 204 ? null : body; SP.at = now(); }
+        spRender();
+      });
+    }
+    spTimer = setTimeout(spPoll, SP_POLL[view]);
+  }
+  function spRender() { renderMusic(); renderMini(); renderBigClock(); }
+
+  // ---------- Mini player on Home ----------
+  var ICON_SPOTIFY = '<svg class="sp" viewBox="0 0 24 24"><circle cx="12" cy="12" r="12" fill="#1ed760"/>' +
+    '<path d="M6.4 9.2c3.8-1.1 8-.8 11.2 1.1M7 12.3c3.1-.9 6.5-.6 9.2 1M7.7 15.3c2.5-.6 5-.4 7.1.8" fill="none" stroke="#06240f" stroke-width="1.7" stroke-linecap="round"/></svg>';
+  var miniMode = '';
+  function renderMini() {
+    if (view !== 'home') return;
+    var m = musicMode(), el = $('mini');
+    if (m !== miniMode) {   // rebuild only when the state changes, so artwork doesn't flicker
+      miniMode = m;
+      if (m === 'playing') {
+        el.innerHTML = '<div id="mini-bg"></div><img class="art" id="mini-art" alt="">' +
+          '<div class="info"><div class="t" id="mini-t"></div><div class="a" id="mini-a"></div><div class="bar"><div id="mini-fill"></div></div></div>' +
+          '<div class="ctl"><button type="button" class="big" data-act="toggle" id="mini-play"></button>' +
+          '<button type="button" data-act="next">' + ICON_NEXT + '</button></div>';
+      } else if (m === 'idle') {
+        el.innerHTML = ICON_SPOTIFY + '<div class="msg"><b>Nothing playing</b><br>Start something on any device</div>';
+      } else {
+        el.innerHTML = ICON_SPOTIFY + '<div class="msg"><b>Spotify</b><br>See what&rsquo;s playing and control it here</div><div class="go">Set up &rsaquo;</div>';
+      }
+    }
+    if (m !== 'playing') return;
+    var st = SP.state, it = st.item;
+    var imgs = (it.album && it.album.images) || it.images || (it.show && it.show.images) || [];
+    var art = imgs.length ? imgs[imgs.length > 1 ? 1 : 0].url : '';   // medium-size image is plenty here
+    if ($('mini-art').getAttribute('src') !== art) {
+      if (art) $('mini-art').setAttribute('src', art); else $('mini-art').removeAttribute('src');
+      $('mini-bg').style.backgroundImage = art ? 'url("' + art + '")' : '';
+    }
+    $('mini-t').innerHTML = esc(it.name);
+    $('mini-a').innerHTML = esc(artists(it));
+    $('mini-play').innerHTML = st.is_playing ? ICON_PAUSE : ICON_PLAY;
+    tickMini();
+  }
+  function tickMini() {
+    if (view !== 'home' || miniMode !== 'playing' || !SP.state || !SP.state.item) return;
+    $('mini-fill').style.width = (spPos() / (SP.state.item.duration_ms || 1) * 100).toFixed(2) + '%';
+  }
+  // Buttons control playback; tapping anywhere else on the card opens the full Music screen.
+  $('mini').addEventListener('click', function (e) {
+    var n = e.target;
+    while (n && n !== this && !(n.getAttribute && n.getAttribute('data-act'))) n = n.parentNode;
+    var act = n && n !== this ? n.getAttribute('data-act') : null;
+    if (!act) return;   // the Home tap handler opens the Music screen
+    spControl(act === 'toggle' ? (SP.state && SP.state.is_playing ? 'pause' : 'play') : act);
+  }, false);
+
+  function spPos() {
+    var st = SP.state;
+    if (!st || !st.item) return 0;
+    return Math.min(st.item.duration_ms, (st.progress_ms || 0) + (st.is_playing ? (now() - SP.at) * 1000 : 0));
+  }
+
+  function spControl(action) {
+    var map = { prev: ['POST', '/me/player/previous'], next: ['POST', '/me/player/next'],
+      play: ['PUT', '/me/player/play'], pause: ['PUT', '/me/player/pause'] };
+    var st = SP.state;
+    if (st && (action === 'play' || action === 'pause')) {   // flip the button right away
+      st.progress_ms = spPos(); SP.at = now(); st.is_playing = action === 'play';
+      spRender();
+    }
+    spApi(map[action][0], map[action][1], function (err) {
+      SP.msg = !err ? '' : err.message === 'premium' ? 'Playback controls need Spotify Premium.' : 'Couldn&rsquo;t reach Spotify. Try again.';
+      spRender();
+      setTimeout(spPoll, 600);
+    });
+  }
+
+  function spDisconnect() {
+    lsDel('spRefresh'); lsDel('spAccess'); lsDel('spExp');
+    SP.state = null; SP.msg = '';
+    spRender();
+  }
+
+  function musicMode() {
+    if (!SP.id) return spSupported() ? 'setup' : 'insecure';
+    if (!spSupported()) return 'insecure';
+    if (!spConnected()) return 'connect';
+    return SP.state && SP.state.item ? 'playing' : 'idle';
+  }
+
+  var MUSIC_TPL = {
+    insecure: function () {
+      return '<div class="card mcard"><h2>Spotify needs a secure address</h2><p>Spotify sign-in only works when the panel is opened from an ' +
+        '<b>https://</b> address, for example once it&rsquo;s published on GitHub Pages. Right now it&rsquo;s loaded from <code>' + esc(location.origin) + '</code>.</p></div>';
+    },
+    setup: function () {
+      return '<div class="card mcard"><h2>Connect Spotify</h2><p>One-time setup, about 3 minutes, on any computer:</p><ol>' +
+        '<li>Go to <b>developer.spotify.com/dashboard</b>, log in, and click <b>Create app</b>.</li>' +
+        '<li>Any name and description. For <b>Redirect URI</b> enter exactly:<br><code>' + esc(SP_REDIRECT) + '</code></li>' +
+        '<li>Tick <b>Web API</b>, save, then copy the app&rsquo;s <b>Client ID</b> and paste it here.</li></ol>' +
+        '<div class="mrow"><input id="m-id" type="text" placeholder="Spotify Client ID" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
+        '<button type="button" class="btn" id="m-save">Save</button></div><div id="m-msg"></div></div>';
+    },
+    connect: function () {
+      return '<div class="card mcard"><h2>Spotify</h2><p>Show what&rsquo;s playing on any of your devices, with play, pause and skip.</p>' +
+        '<button type="button" class="btn" id="m-connect">Connect Spotify</button><div id="m-msg"></div>' +
+        '<button type="button" class="link" id="m-change">Use a different Client ID</button></div>';
+    },
+    idle: function () {
+      return '<div class="card mcard"><h2>Nothing playing</h2><p>Start something in Spotify on your phone, computer or speaker and it&rsquo;ll show up here.</p>' +
+        '<div id="m-msg"></div><button type="button" class="link" id="m-disc">Disconnect Spotify</button></div>';
+    },
+    playing: function () {
+      return '<div class="mp"><img id="m-art" alt="">' +
+        '<div class="mi"><div class="label" id="m-dev"></div><div id="m-title"></div><div id="m-artist"></div><div id="m-album"></div>' +
+        '<div class="mprog"><div class="bar"><div id="m-fill"></div></div><div class="mt num"><span id="m-pos"></span><span id="m-dur"></span></div></div>' +
+        '<div class="mctl"><button type="button" id="m-prev">' + ICON_PREV + '</button><button type="button" class="big" id="m-play"></button>' +
+        '<button type="button" id="m-next">' + ICON_NEXT + '</button></div><div id="m-msg"></div></div></div>';
+    }
+  };
+
+  function on(id, fn) { var el = $(id); if (el) el.addEventListener('click', fn, false); }
+  function bindMusic(mode) {
+    if (mode === 'setup') {
+      on('m-save', function () {
+        var v = $('m-id').value.replace(/\s/g, '');
+        if (!/^[0-9a-f]{32}$/i.test(v)) { SP.msg = 'That doesn&rsquo;t look like a Client ID (32 letters and numbers).'; renderMusic(); return; }
+        SP.id = v; SP.msg = ''; lsSet('spClientId', v);
+        renderMusic();
+      });
+    }
+    if (mode === 'connect') {
+      on('m-connect', spConnect);
+      on('m-change', function () { lsDel('spClientId'); SP.id = ''; SP.msg = ''; renderMusic(); });
+    }
+    if (mode === 'idle') on('m-disc', spDisconnect);
+    if (mode === 'playing') {
+      on('m-prev', function () { spControl('prev'); });
+      on('m-next', function () { spControl('next'); });
+      on('m-play', function () { spControl(SP.state && SP.state.is_playing ? 'pause' : 'play'); });
+    }
+  }
+
+  function renderMusic() {
+    if (view !== 'music') return;
+    var mode = musicMode();
+    if (mode !== SP.mode) {   // rebuild only when the screen changes, so the input and artwork don't flicker
+      SP.mode = mode;
+      $('m-body').innerHTML = MUSIC_TPL[mode]();
+      bindMusic(mode);
+    }
+    if (mode === 'playing') updatePlaying();
+    else $('m-bg').style.opacity = 0;
+    if ($('m-msg')) $('m-msg').innerHTML = SP.msg;
+  }
+
+  function updatePlaying() {
+    var st = SP.state, it = st.item;
+    var imgs = (it.album && it.album.images) || it.images || (it.show && it.show.images) || [];
+    var art = imgs[0] ? imgs[0].url : '';
+    if ($('m-art').getAttribute('src') !== art) {
+      if (art) $('m-art').setAttribute('src', art); else $('m-art').removeAttribute('src');
+      $('m-bg').style.backgroundImage = art ? 'url("' + art + '")' : '';
+    }
+    $('m-bg').style.opacity = art ? 0.55 : 0;
+    $('m-dev').innerHTML = st.device && st.device.name ? 'Playing on ' + esc(st.device.name) : 'Spotify';
+    $('m-title').innerHTML = esc(it.name);
+    $('m-artist').innerHTML = esc(artists(it));
+    $('m-album').innerHTML = esc(it.album ? it.album.name : it.show ? it.show.name : '');
+    $('m-play').innerHTML = st.is_playing ? ICON_PAUSE : ICON_PLAY;
+    tickMusic();
+  }
+
+  function fmtMs(ms) { var s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + pad(s % 60); }
+  function tickMusic() {
+    if (view !== 'music' || SP.mode !== 'playing' || !SP.state || !SP.state.item) return;
+    var p = spPos(), dur = SP.state.item.duration_ms || 1;
+    $('m-fill').style.width = (p / dur * 100).toFixed(2) + '%';
+    $('m-pos').innerHTML = fmtMs(p);
+    $('m-dur').innerHTML = fmtMs(dur);
+  }
+
+  // ---------- Calendar (Google Calendar through your own Apps Script link) ----------
+  // The link comes from calendar-feed.gs deployed as a web app in your Google account. It returns
+  // today's and tomorrow's events as JSON, so the iPad never has to sign in to Google.
+  var CAL = { url: lsGet('calUrl') || '', events: null, at: 0, err: '', busy: false, msg: '' };
+
+  function loadCalendar() {
+    if (!CAL.url || CAL.busy) { renderAgenda(); return; }
+    CAL.busy = true;
+    get(CAL.url + (CAL.url.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now(), false, function (err, txt) {
+      CAL.busy = false;
+      var data = null;
+      if (!err) { try { data = JSON.parse(txt); } catch (e) { data = null; } }
+      if (data && data.events) { CAL.events = data.events; CAL.at = now(); CAL.err = ''; }
+      else CAL.err = err ? 'Couldn&rsquo;t reach Google. Check the Wi-Fi.' :
+        'The link didn&rsquo;t return events. Check the deployment&rsquo;s access is set to &ldquo;Anyone&rdquo;.';
+      renderAgenda();
+      renderCalendar();
+    });
+  }
+
+  function dayBounds(offset) {
+    var d = new Date();
+    return [new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset).getTime(),
+            new Date(d.getFullYear(), d.getMonth(), d.getDate() + offset + 1).getTime()];
+  }
+  function eventsOn(offset) {   // events that overlap that day (so multi-day events show on each day)
+    var b = dayBounds(offset), out = [];
+    if (!CAL.events) return out;
+    for (var i = 0; i < CAL.events.length; i++) {
+      var ev = CAL.events[i];
+      if (ev.start < b[1] && ev.end > b[0]) out.push(ev);
+    }
+    return out;
+  }
+  function fmtClock(ms) { var d = new Date(ms); return fmtTime(d) + (d.getHours() < 12 ? 'am' : 'pm'); }
+  function evColor(ev) { return /^#[0-9a-f]{3,8}$/i.test(ev.color || '') ? ev.color : '#7fbcff'; }
+
+  // Home card: what's left today (up to 3), or tomorrow's first event if today is done.
+  function renderAgenda() {
+    if (view !== 'home') return;
+    var el = $('agenda');
+    if (!CAL.url) {
+      el.innerHTML = '<div class="label">Today</div><div class="ag-msg"><b>Google Calendar</b><br>Tap to show today&rsquo;s events here</div>';
+      return;
+    }
+    if (!CAL.events) {
+      el.innerHTML = '<div class="label">Today</div><div class="ag-msg">' + (CAL.err || 'Loading calendar&hellip;') + '</div>';
+      return;
+    }
+    var t = Date.now(), today = eventsOn(0), timed = [], allDay = [], i;
+    for (i = 0; i < today.length; i++) {
+      if (today[i].allDay) allDay.push(today[i]);
+      else if (today[i].end > t) timed.push(today[i]);
+    }
+    var list = timed.slice(0, 3);
+    if (list.length < 3 && allDay.length) list.unshift(allDay[0]);
+    var html = '<div class="label">Today' + (today.length ? ' &middot; ' + today.length + ' event' + (today.length > 1 ? 's' : '') : '') + '</div>';
+    for (i = 0; i < list.length && i < 3; i++) {
+      var ev = list[i], isNow = !ev.allDay && ev.start <= t && ev.end > t;
+      html += '<div class="ag-row"><div class="ag-dot" style="background:' + evColor(ev) + '"></div>' +
+        '<div class="ag-time num">' + (ev.allDay ? 'All day' : fmtClock(ev.start)) + '</div>' +
+        '<div class="ag-title">' + esc(ev.title) + '</div>' + (isNow ? '<span class="ag-now">NOW</span>' : '') + '</div>';
+    }
+    if (!list.length) {
+      var tm = eventsOn(1), next = null;
+      for (i = 0; i < tm.length; i++) if (!tm[i].allDay) { next = tm[i]; break; }
+      html += '<div class="ag-msg"><b>Nothing else today.</b>' +
+        (next ? '<br>Tomorrow: ' + fmtClock(next.start) + ' &middot; ' + esc(next.title) : '') + '</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  // Calendar screen: Today (wider) and Tomorrow side by side; all-day events as chips on top.
+  function calCol(offset) {
+    var evs = eventsOn(offset), t = Date.now(), dd = new Date(dayBounds(offset)[0]);
+    var chips = '', timed = [], list = '', i;
+    for (i = 0; i < evs.length; i++) {
+      if (evs[i].allDay) chips += '<span class="cal-chip" style="background:' + evColor(evs[i]) + '">' + esc(evs[i].title) + '</span>';
+      else timed.push(evs[i]);
+    }
+    while (timed.length > 6 && timed[0].end <= t) timed.shift();   // drop finished events when the day is busy
+    for (i = 0; i < timed.length; i++) {
+      var ev = timed[i], past = ev.end <= t, isNow = ev.start <= t && ev.end > t;
+      list += '<div class="cal-ev' + (past ? ' past' : '') + (isNow ? ' cur' : '') + '"><div class="bar2" style="background:' + evColor(ev) + '"></div>' +
+        '<div class="tm num">' + fmtClock(ev.start) + '<small>' + fmtClock(ev.end) + '</small></div>' +
+        '<div class="bd"><div class="ti">' + esc(ev.title) + '</div>' + (ev.location ? '<div class="lo">' + esc(ev.location) + '</div>' : '') + '</div></div>';
+    }
+    if (!CAL.events) list = '<div class="cal-none">' + (CAL.err || 'Loading&hellip;') + '</div>';
+    else if (!list) list = '<div class="cal-none">' + (chips ? 'No timed events' : 'No events') + '</div>';
+    var foot = offset === 0 ? '<div class="cal-foot">' + (CAL.at ? 'Updated ' + fmtTime(new Date(CAL.at * 1000)) + ' &middot; ' : '') +
+      '<span id="cal-change" style="text-decoration:underline">Change calendar link</span></div>' : '';
+    return '<div class="card cal-col' + (offset === 0 ? ' today' : '') + '"><h2>' + (offset === 0 ? 'Today' : 'Tomorrow') +
+      '<small>' + DAYS[dd.getDay()].substr(0, 3) + ', ' + MONTHS[dd.getMonth()].substr(0, 3) + ' ' + dd.getDate() + '</small></h2>' +
+      (chips ? '<div class="cal-allday">' + chips + '</div>' : '') + '<div class="cal-list">' + list + '</div>' + foot + '</div>';
+  }
+
+  var CAL_SETUP = '<div class="card mcard"><h2>Connect Google Calendar</h2>' +
+    '<p>One-time setup, about 3 minutes, on a computer signed in to your Google account:</p><ol>' +
+    '<li>Go to <b>script.google.com</b> and click <b>New project</b>.</li>' +
+    '<li>Replace the code with the contents of <code>calendar-feed.gs</code> from the panel&rsquo;s folder, then click Save.</li>' +
+    '<li><b>Deploy &rarr; New deployment</b> &rarr; type <b>Web app</b>. Execute as <b>Me</b>, access <b>Anyone</b>. Deploy and allow access.</li>' +
+    '<li>Copy the <b>Web app URL</b> (ends in <code>/exec</code>) and paste it here.</li></ol>' +
+    '<div class="mrow"><input id="cal-url" type="url" placeholder="https://script.google.com/macros/s/&hellip;/exec" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">' +
+    '<button type="button" class="btn" id="cal-save">Save</button></div><div id="cal-msg"></div>' +
+    '<p style="margin-top:14px;font-size:14px">Anyone with this link can see your next two days of events, so keep it private.</p></div>';
+
+  function renderCalendar() {
+    if (view !== 'calendar') return;
+    var d = new Date(), body = $('cal-body');
+    $('cal-sub').innerHTML = DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+    if (!CAL.url) {
+      if (body.getAttribute('data-mode') !== 'setup') {   // don't rebuild while you're typing
+        body.setAttribute('data-mode', 'setup');
+        body.innerHTML = CAL_SETUP;
+        on('cal-save', function () {
+          var v = $('cal-url').value.replace(/\s/g, '');
+          if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(v)) {
+            $('cal-msg').innerHTML = 'That should be a link like https://script.google.com/macros/s/&hellip;/exec';
+            return;
+          }
+          CAL.url = v; CAL.events = null; CAL.err = '';
+          lsSet('calUrl', v);
+          renderCalendar();
+          loadCalendar();
+        });
+      }
+      return;
+    }
+    body.setAttribute('data-mode', 'list');
+    body.innerHTML = calCol(0) + calCol(1);
+    on('cal-change', function () {
+      lsDel('calUrl'); CAL.url = ''; CAL.events = null; CAL.err = '';
+      renderCalendar();
+      renderAgenda();
+    });
+  }
+
+  // ---------- Offline cache updates ----------
+  // Report what the offline cache is doing to the installer window (only works while it's running;
+  // fails silently otherwise).
+  function diag(msg) {
+    try { var x = new XMLHttpRequest(); x.open('GET', '/diag?m=' + encodeURIComponent(msg), true); x.send(); } catch (e) {}
+  }
+  var storageOk = true;
+  try { localStorage.setItem('_t', '1'); localStorage.removeItem('_t'); } catch (e) { storageOk = false; }
+  if (!storageOk) diag('website storage is BLOCKED (Private Browsing on, or cookies set to Always Block)');
+
+  if (window.applicationCache) {
+    var AC_STATES = ['uncached', 'idle (already saved)', 'checking', 'downloading', 'update ready', 'obsolete'];
+    diag('supported; status at load = ' + AC_STATES[applicationCache.status]);
+    var acEvents = { checking: 'checking for the manifest', noupdate: 'saved and up to date (OK!)',
+      downloading: 'downloading files', cached: 'SAVED for offline use (OK!)', updateready: 'new version downloaded, reloading',
+      obsolete: 'manifest missing (obsolete)', error: 'ERROR while saving' };
+    for (var ev in acEvents) {
+      (function (name, text) {
+        applicationCache.addEventListener(name, function () { diag(text); }, false);
+      })(ev, acEvents[ev]);
+    }
+    applicationCache.addEventListener('updateready', function () {
+      try { applicationCache.swapCache(); } catch (e) {}
+      location.reload();
+    }, false);
+  } else {
+    diag('NOT supported by this browser');
+  }
+
+  // Any tap brightens the screen while dimmed; the Refresh button also fetches trains.
+  document.addEventListener('touchstart', function () { wakeUntil = now() + WAKE_SECONDS; renderClock(); }, false);
+  document.addEventListener('mousedown', function () { wakeUntil = now() + WAKE_SECONDS; renderClock(); }, false);
+  $('refresh').addEventListener('click', function () { loadTrains(true); }, false);
+  $('refresh2').addEventListener('click', function () { loadTrains(true); }, false);
+
+  // Tap a Home card to open its screen, zooming out from the card. Buttons inside cards
+  // (Refresh, Temp/Rain/Feels, play/pause) keep doing their own job.
+  function expandTo(v, fromEl) {
+    if (v === view) return;
+    var r = fromEl.getBoundingClientRect();
+    showView(v);
+    var target = $('view-' + v), t = target.getBoundingClientRect();
+    var origin = (r.left + r.width / 2 - t.left).toFixed(0) + 'px ' + (r.top + r.height / 2 - t.top).toFixed(0) + 'px';
+    target.style.webkitTransformOrigin = origin;
+    target.style.transformOrigin = origin;
+    target.className = 'view expand';
+    setTimeout(function () { if (target.className === 'view expand') target.className = 'view'; }, 500);
+  }
+  $('view-home').addEventListener('click', function (e) {
+    for (var n = e.target; n && n !== this; n = n.parentNode) {
+      if (n.tagName === 'BUTTON') return;
+      var go = n.getAttribute && n.getAttribute('data-go');
+      if (go) { expandTo(go, n); return; }
+    }
+  }, false);
+
+  var modeBtns = $('modes').getElementsByTagName('button');
+  for (var mb = 0; mb < modeBtns.length; mb++) {
+    modeBtns[mb].addEventListener('click', function () { setMode(this.getAttribute('data-mode')); }, false);
+  }
+  setMode(chartMode);
+  setButton('', 'Refresh');
+
+  // Navigation: tap the menu at the bottom, or swipe left/right anywhere.
+  var navBtns = $('nav').getElementsByTagName('button');
+  for (var nb = 0; nb < navBtns.length; nb++) {
+    navBtns[nb].addEventListener('click', function () { showView(this.getAttribute('data-view')); }, false);
+  }
+  on('f-day-btn', function () { setForecastMode('day'); });
+  on('f-week-btn', function () { setForecastMode('week'); });
+  var swipeX = null, swipeY = 0;
+  document.addEventListener('touchstart', function (e) {
+    lastTouch = now();
+    var t = e.touches[0];
+    swipeX = e.target.tagName === 'INPUT' ? null : t.clientX;
+    swipeY = t.clientY;
+  }, false);
+  document.addEventListener('mousedown', function () { lastTouch = now(); }, false);
+  document.addEventListener('touchend', function (e) {
+    if (swipeX === null) return;
+    var t = e.changedTouches[0], dx = t.clientX - swipeX, dy = t.clientY - swipeY;
+    swipeX = null;
+    if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      var i = VIEWS.indexOf(view) + (dx < 0 ? 1 : -1);
+      if (i >= 0 && i < VIEWS.length) showView(VIEWS[i]);
+    }
+  }, false);
+
+  setForecastMode(fMode);
+  showView(spHandleRedirect() ? 'music' : 'home');
+
+  renderClock(); shift(); updateSky();
+  loadTrains(false);
+  loadWeather();
+  setInterval(function () {
+    renderClock(); renderTrains();
+    if ((view === 'forecast' || view === 'trains' || view === 'calendar') && now() - lastTouch > IDLE_HOME_SECONDS) showView('home');
+  }, 5000);
+  setInterval(function () { renderBigClock(); tickMusic(); tickMini(); }, 1000);
+  setInterval(function () { if (weather) { renderSun(); } updateSky(); }, 60000);
+  setInterval(loadWeather, 15 * 60 * 1000);
+  loadCalendar();
+  setInterval(loadCalendar, 10 * 60 * 1000);
+  setInterval(function () { renderAgenda(); renderCalendar(); }, 60000);   // keeps "Now" and past events current
+  setInterval(shift, 10 * 60 * 1000);
+  // Reload once a day at 7:44am (just before the morning window) to clear slow memory leaks in
+  // old Safari. It loads from the offline cache. Reloading at that time keeps it from adding
+  // overnight train fetches, since every page load fetches once.
+  (function () {
+    var d = new Date(), at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 7, 44, 0);
+    if (at <= d) at.setDate(at.getDate() + 1);
+    setTimeout(function () { location.reload(); }, at - d);
+  })();
+})();
+</script>
+</body>
+</html>
