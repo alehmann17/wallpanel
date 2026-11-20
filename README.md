@@ -10,7 +10,8 @@ Home to open its screen:
 - **Forecast**: **Day** (next 24 hours: temperature, rain chance, sunrise/sunset, plus feels-like,
   humidity, UV, wind, rain total and daylight) and **Week** (7 days with high/low bars on a shared scale).
 - **Clock**: a big full-screen clock with the weather, the next uptown 6, and what's playing.
-- **Music**: Spotify now playing, with album art and play/pause/skip.
+- **Music**: Spotify now playing with play/pause/skip, in two styles (tap Vinyl or Cover, top right):
+  a spinning record with a tonearm that drops when music plays, or big album art over a slowly swirling glow of its colors.
 
 Trains, Calendar and Forecast go back to Home after 3 minutes untouched.
 The iPad fetches the MTA and weather data itself. No server, no API keys.
